@@ -1,0 +1,14 @@
+{
+  "name": "mywave-spicetify",
+  "version": "1.0.0",
+  "description": "Yandex-style infinite music stream for Spotify Desktop",
+  "scripts": {
+    "build": "spicetify-creator build",
+    "watch": "spicetify-creator watch"
+  },
+  "devDependencies": {
+    "spicetify-creator": "^1.0.0",
+    "@types/react": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}

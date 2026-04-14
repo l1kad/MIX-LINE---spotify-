@@ -4,8 +4,7 @@ import { AsciiWave, PanelMixLabel, triggerNewMix } from "./visualizers";
 import { NowPlayingCard, MainTab, HistoryTab, StatsTab } from "./panel";
 import { useEngineState } from "./hooks";
 
-const React = Spicetify.React;
-const h = (...args: any[]) => React.createElement(...(args as [any, any, ...any[]]));
+const h = (...args: any[]) => Spicetify.React.createElement(...(args as [any, any, ...any[]]));
 
 let engine: WaveEngine;
 export function setBottomBarEngine(e: WaveEngine) { engine = e; }
@@ -13,11 +12,11 @@ export function setBottomBarEngine(e: WaveEngine) { engine = e; }
 // ========== BOTTOM BAR WIDGET ==========
 export function BottomBarWidget() {
   const state = useEngineState();
-  const [panelOpen, setPanelOpen] = React.useState(false);
-  const [tab, setTab] = React.useState("main" as "main" | "history" | "stats");
-  const panelRef = React.useRef(null as HTMLDivElement | null);
+  const [panelOpen, setPanelOpen] = Spicetify.React.useState(false);
+  const [tab, setTab] = Spicetify.React.useState("main" as "main" | "history" | "stats");
+  const panelRef = Spicetify.React.useRef(null as HTMLDivElement | null);
 
-  React.useEffect(() => {
+  Spicetify.React.useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setPanelOpen(false);
@@ -27,7 +26,7 @@ export function BottomBarWidget() {
     return () => document.removeEventListener("mousedown", handler);
   }, [panelOpen]);
 
-  React.useEffect(() => {
+  Spicetify.React.useEffect(() => {
     if (panelOpen) setTab("main");
   }, [panelOpen]);
 

@@ -1,14 +1,13 @@
 import { EQ_COLS, EQ_ROWS, EQ_COLS_MINI, EQ_ROWS_MINI } from "../engine/constants";
 
-const React = Spicetify.React;
-const h = (...args: any[]) => React.createElement(...(args as [any, any, ...any[]]));
+const h = (...args: any[]) => Spicetify.React.createElement(...(args as [any, any, ...any[]]));
 
 export let newMixCounter = 0;
 export const newMixListeners = new Set<() => void>();
 export function triggerNewMix() { newMixCounter++; newMixListeners.forEach(cb => cb()); }
 export function useNewMixSignal() {
-  const [count, setCount] = React.useState(newMixCounter);
-  React.useEffect(() => {
+  const [count, setCount] = Spicetify.React.useState(newMixCounter);
+  Spicetify.React.useEffect(() => {
     const cb = () => setCount(newMixCounter);
     newMixListeners.add(cb);
     return () => { newMixListeners.delete(cb); };
@@ -22,15 +21,15 @@ export function AsciiWave({ active, mini }: { active: boolean; mini?: boolean })
   const rows = mini ? EQ_ROWS_MINI : EQ_ROWS;
 
   // Idle bar heights (bell curve — center taller)
-  const idle = React.useMemo(() =>
+  const idle = Spicetify.React.useMemo(() =>
     Array.from({ length: cols }, (_, i) => {
       const c = (cols - 1) / 2;
       return (1 - Math.abs(i - c) / c * 0.6) * rows * 0.25;
     }), [cols, rows]);
 
-  const [bars, setBars] = React.useState<number[]>(idle);
+  const [bars, setBars] = Spicetify.React.useState<number[]>(idle);
 
-  React.useEffect(() => {
+  Spicetify.React.useEffect(() => {
     if (!active) { setBars(idle); return; }
     const cur = idle.map(v => v);
     const tgt = cur.map(() => Math.random() * rows);
@@ -69,12 +68,12 @@ export function AsciiWave({ active, mini }: { active: boolean; mini?: boolean })
 
 // ========== CONSOLE TYPING LABEL ==========
 export function MixLabel({ isNewMix }: { isNewMix?: boolean }) {
-  const [text, setText] = React.useState("");
-  const [phase, setPhase] = React.useState("typing" as "typing" | "hold" | "erasing");
-  const targetRef = React.useRef("/MIX...");
-  const triggerRef = React.useRef(0);
+  const [text, setText] = Spicetify.React.useState("");
+  const [phase, setPhase] = Spicetify.React.useState("typing" as "typing" | "hold" | "erasing");
+  const targetRef = Spicetify.React.useRef("/MIX...");
+  const triggerRef = Spicetify.React.useRef(0);
 
-  React.useEffect(() => {
+  Spicetify.React.useEffect(() => {
     if (isNewMix) {
       targetRef.current = "/NEW MIX...";
       setText("");
@@ -83,7 +82,7 @@ export function MixLabel({ isNewMix }: { isNewMix?: boolean }) {
     }
   }, [isNewMix]);
 
-  React.useEffect(() => {
+  Spicetify.React.useEffect(() => {
     let timer: any;
     const target = targetRef.current;
 
@@ -113,9 +112,9 @@ export function MixLabel({ isNewMix }: { isNewMix?: boolean }) {
 
 export function PanelMixLabel() {
   const sig = useNewMixSignal();
-  const [isNew, setIsNew] = React.useState(false);
-  const prevRef = React.useRef(sig);
-  React.useEffect(() => {
+  const [isNew, setIsNew] = Spicetify.React.useState(false);
+  const prevRef = Spicetify.React.useRef(sig);
+  Spicetify.React.useEffect(() => {
     if (sig !== prevRef.current) { setIsNew(true); prevRef.current = sig; }
     else { setIsNew(false); }
   }, [sig]);

@@ -689,14 +689,14 @@
   };
 
   // src/ui/hooks.ts
-  var React = Spicetify.React;
   var engine;
   function setHooksEngine(e) {
     engine = e;
   }
   function useEngineState() {
-    const [state, setState] = React.useState(engine.getState());
-    React.useEffect(() => {
+    const React2 = Spicetify.React;
+    const [state, setState] = React2.useState(engine.getState());
+    React2.useEffect(() => {
       const unsub = engine.subscribe(() => setState({ ...engine.getState() }));
       return () => {
         unsub();
@@ -705,8 +705,9 @@
     return state;
   }
   function useTimeTick(active) {
-    const [, setTick] = React.useState(0);
-    React.useEffect(() => {
+    const React2 = Spicetify.React;
+    const [, setTick] = React2.useState(0);
+    React2.useEffect(() => {
       if (!active) return;
       const id = setInterval(() => setTick((t) => t + 1), 3e4);
       return () => clearInterval(id);
@@ -810,8 +811,7 @@
   }
 
   // src/ui/visualizers.tsx
-  var React2 = Spicetify.React;
-  var h2 = (...args) => React2.createElement(...args);
+  var h2 = (...args) => Spicetify.React.createElement(...args);
   var newMixCounter = 0;
   var newMixListeners = /* @__PURE__ */ new Set();
   function triggerNewMix() {
@@ -819,8 +819,8 @@
     newMixListeners.forEach((cb) => cb());
   }
   function useNewMixSignal() {
-    const [count, setCount] = React2.useState(newMixCounter);
-    React2.useEffect(() => {
+    const [count, setCount] = Spicetify.React.useState(newMixCounter);
+    Spicetify.React.useEffect(() => {
       const cb = () => setCount(newMixCounter);
       newMixListeners.add(cb);
       return () => {
@@ -832,12 +832,12 @@
   function AsciiWave({ active, mini }) {
     const cols = mini ? EQ_COLS_MINI : EQ_COLS;
     const rows = mini ? EQ_ROWS_MINI : EQ_ROWS;
-    const idle = React2.useMemo(() => Array.from({ length: cols }, (_, i) => {
+    const idle = Spicetify.React.useMemo(() => Array.from({ length: cols }, (_, i) => {
       const c = (cols - 1) / 2;
       return (1 - Math.abs(i - c) / c * 0.6) * rows * 0.25;
     }), [cols, rows]);
-    const [bars, setBars] = React2.useState(idle);
-    React2.useEffect(() => {
+    const [bars, setBars] = Spicetify.React.useState(idle);
+    Spicetify.React.useEffect(() => {
       if (!active) {
         setBars(idle);
         return;
@@ -882,11 +882,11 @@
     );
   }
   function MixLabel({ isNewMix }) {
-    const [text, setText] = React2.useState("");
-    const [phase, setPhase] = React2.useState("typing");
-    const targetRef = React2.useRef("/MIX...");
-    const triggerRef = React2.useRef(0);
-    React2.useEffect(() => {
+    const [text, setText] = Spicetify.React.useState("");
+    const [phase, setPhase] = Spicetify.React.useState("typing");
+    const targetRef = Spicetify.React.useRef("/MIX...");
+    const triggerRef = Spicetify.React.useRef(0);
+    Spicetify.React.useEffect(() => {
       if (isNewMix) {
         targetRef.current = "/NEW MIX...";
         setText("");
@@ -894,7 +894,7 @@
         triggerRef.current++;
       }
     }, [isNewMix]);
-    React2.useEffect(() => {
+    Spicetify.React.useEffect(() => {
       let timer;
       const target = targetRef.current;
       if (phase === "typing") {
@@ -924,9 +924,9 @@
   }
   function PanelMixLabel() {
     const sig = useNewMixSignal();
-    const [isNew, setIsNew] = React2.useState(false);
-    const prevRef = React2.useRef(sig);
-    React2.useEffect(() => {
+    const [isNew, setIsNew] = Spicetify.React.useState(false);
+    const prevRef = Spicetify.React.useRef(sig);
+    Spicetify.React.useEffect(() => {
       if (sig !== prevRef.current) {
         setIsNew(true);
         prevRef.current = sig;
@@ -956,8 +956,7 @@
   }
 
   // src/ui/panel.tsx
-  var React3 = Spicetify.React;
-  var h3 = (...args) => React3.createElement(...args);
+  var h3 = (...args) => Spicetify.React.createElement(...args);
   var engine2;
   function setEngine(e) {
     engine2 = e;
@@ -1019,14 +1018,14 @@
   function MainTab({ state }) {
     if (state.isActive) {
       return h3(
-        React3.Fragment,
+        Spicetify.React.Fragment,
         null,
         h3(MoodChips, { activeMood: state.activeMood, isActive: true, topLikedArtist: state.topLikedArtist, isFavoritesMode: state.isFavoritesMode, pinnedMood: state.pinnedMood }),
         h3(InlineStats, { state })
       );
     }
     return h3(
-      React3.Fragment,
+      Spicetify.React.Fragment,
       null,
       // ASCII wave hero when not active
       h3(
@@ -1051,7 +1050,7 @@
     );
   }
   function MoodChips({ activeMood, isActive, topLikedArtist, isFavoritesMode, pinnedMood }) {
-    const [expanded, setExpanded] = React3.useState(false);
+    const [expanded, setExpanded] = Spicetify.React.useState(false);
     const visible = expanded ? MOODS : MOODS.slice(0, 4);
     return h3(
       "div",
@@ -1178,8 +1177,8 @@
     );
   }
   function LikeButton({ uri }) {
-    const [liked, setLiked] = React3.useState(false);
-    React3.useEffect(() => {
+    const [liked, setLiked] = Spicetify.React.useState(false);
+    Spicetify.React.useEffect(() => {
       let cancelled = false;
       (async () => {
         try {
@@ -1274,8 +1273,7 @@
   }
 
   // src/ui/HomeBanner.tsx
-  var React4 = Spicetify.React;
-  var h4 = (...args) => React4.createElement(...args);
+  var h4 = (...args) => Spicetify.React.createElement(...args);
   var engine3;
   function setHomeBannerEngine(e) {
     engine3 = e;
@@ -1331,7 +1329,7 @@
           "div",
           { className: "mw-home-btns" },
           state.isActive ? h4(
-            React4.Fragment,
+            Spicetify.React.Fragment,
             null,
             h4(
               "button",
@@ -1355,7 +1353,7 @@
               `${state.playedCount} tracks`
             )
           ) : h4(
-            React4.Fragment,
+            Spicetify.React.Fragment,
             null,
             h4(
               "button",
@@ -1394,18 +1392,17 @@
   }
 
   // src/ui/BottomBarWidget.tsx
-  var React5 = Spicetify.React;
-  var h5 = (...args) => React5.createElement(...args);
+  var h5 = (...args) => Spicetify.React.createElement(...args);
   var engine4;
   function setBottomBarEngine(e) {
     engine4 = e;
   }
   function BottomBarWidget() {
     const state = useEngineState();
-    const [panelOpen, setPanelOpen] = React5.useState(false);
-    const [tab, setTab] = React5.useState("main");
-    const panelRef = React5.useRef(null);
-    React5.useEffect(() => {
+    const [panelOpen, setPanelOpen] = Spicetify.React.useState(false);
+    const [tab, setTab] = Spicetify.React.useState("main");
+    const panelRef = Spicetify.React.useRef(null);
+    Spicetify.React.useEffect(() => {
       const handler = (e) => {
         if (panelRef.current && !panelRef.current.contains(e.target)) {
           setPanelOpen(false);
@@ -1414,7 +1411,7 @@
       if (panelOpen) document.addEventListener("mousedown", handler);
       return () => document.removeEventListener("mousedown", handler);
     }, [panelOpen]);
-    React5.useEffect(() => {
+    Spicetify.React.useEffect(() => {
       if (panelOpen) setTab("main");
     }, [panelOpen]);
     return h5(
@@ -2002,7 +1999,7 @@
   }
 
   // src/app.tsx
-  var React6;
+  var React;
   var ReactDOM;
   var engine5 = new WaveEngine();
   var h6 = (...args) => Spicetify.React.createElement(...args);
@@ -2040,7 +2037,7 @@
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
     await new Promise((resolve) => setTimeout(resolve, 1e3));
-    React6 = Spicetify.React;
+    React = Spicetify.React;
     ReactDOM = Spicetify.ReactDOM;
     console.log("[MyWave] Initializing...");
     setHooksEngine(engine5);

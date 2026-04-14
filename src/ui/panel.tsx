@@ -5,8 +5,7 @@ import { HeartIcon, PlayIcon, StopIcon, MixIcon, MoodIcon, HistoryIcon, StatsIco
 import { AsciiWave, PanelMixLabel, triggerNewMix } from "./visualizers";
 import { useTimeTick } from "./hooks";
 
-const React = Spicetify.React;
-const h = (...args: any[]) => React.createElement(...(args as [any, any, ...any[]]));
+const h = (...args: any[]) => Spicetify.React.createElement(...(args as [any, any, ...any[]]));
 
 let engine: WaveEngine;
 export function setEngine(e: WaveEngine) { engine = e; }
@@ -50,12 +49,12 @@ export function NowPlayingCard({ state }: { state: WaveState }) {
 // --- Main Tab ---
 export function MainTab({ state }: { state: WaveState }) {
   if (state.isActive) {
-    return h(React.Fragment, null,
+    return h(Spicetify.React.Fragment, null,
       h(MoodChips, { activeMood: state.activeMood, isActive: true, topLikedArtist: state.topLikedArtist, isFavoritesMode: state.isFavoritesMode, pinnedMood: state.pinnedMood }),
       h(InlineStats, { state }));
   }
 
-  return h(React.Fragment, null,
+  return h(Spicetify.React.Fragment, null,
     // ASCII wave hero when not active
     h("div", { className: "mw-hero" },
       h(AsciiWave, { active: false }),
@@ -77,7 +76,7 @@ export function MoodChips({ activeMood, isActive, topLikedArtist, isFavoritesMod
   activeMood: string | null; isActive: boolean; topLikedArtist: string | null;
   isFavoritesMode: boolean; pinnedMood: string | null;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, setExpanded] = Spicetify.React.useState(false);
   const visible = expanded ? MOODS : MOODS.slice(0, 4);
 
   return h("div", { className: "mw-moods" },
@@ -169,9 +168,9 @@ export function HistoryTab({ history }: { history: HistoryEntry[] }) {
 
 // --- Like Button (history rows) ---
 export function LikeButton({ uri }: { uri: string }) {
-  const [liked, setLiked] = React.useState(false);
+  const [liked, setLiked] = Spicetify.React.useState(false);
 
-  React.useEffect(() => {
+  Spicetify.React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {

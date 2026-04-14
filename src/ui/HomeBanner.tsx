@@ -4,8 +4,7 @@ import { WaveIcon, PlayIcon, StopIcon, HeartIcon, MixIcon } from "./icons";
 import { SeaWaves, PanelMixLabel, triggerNewMix } from "./visualizers";
 import { useEngineState } from "./hooks";
 
-const React = Spicetify.React;
-const h = (...args: any[]) => React.createElement(...(args as [any, any, ...any[]]));
+const h = (...args: any[]) => Spicetify.React.createElement(...(args as [any, any, ...any[]]));
 
 let engine: WaveEngine;
 export function setHomeBannerEngine(e: WaveEngine) { engine = e; }
@@ -42,7 +41,7 @@ export function HomeBanner() {
       // Buttons
       h("div", { className: "mw-home-btns" },
         state.isActive
-          ? h(React.Fragment, null,
+          ? h(Spicetify.React.Fragment, null,
               h("button", { className: "mw-home-btn mw-home-btn-stop", onClick: () => engine.stop() },
                 h(StopIcon, { size: 12 }), "Stop"),
               h("button", { className: "mw-home-btn mw-home-btn-mix", onClick: () => { triggerNewMix(); engine.reseed(); } },
@@ -50,7 +49,7 @@ export function HomeBanner() {
               h("div", { className: "mw-home-live" },
                 h("span", { className: "mw-home-dot" }),
                 `${state.playedCount} tracks`))
-          : h(React.Fragment, null,
+          : h(Spicetify.React.Fragment, null,
               h("button", { className: "mw-home-btn mw-home-btn-play", onClick: () => engine.start() },
                 h(PlayIcon, { size: 14 }), "Start"),
               h("button", { className: "mw-home-btn mw-home-btn-fav", onClick: () => engine.startFavorites() },

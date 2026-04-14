@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "description": "Yandex-style infinite music stream for Spotify Desktop",
   "scripts": {
-    "build": "spicetify-creator build",
-    "watch": "spicetify-creator watch"
+    "build": "esbuild src/app.tsx --bundle --outfile=dist/app.js --format=iife --target=es2020 --jsx=transform --jsx-factory=Spicetify.React.createElement --jsx-fragment=Spicetify.React.Fragment",
+    "watch": "esbuild src/app.tsx --bundle --outfile=dist/app.js --format=iife --target=es2020 --jsx=transform --jsx-factory=Spicetify.React.createElement --jsx-fragment=Spicetify.React.Fragment --watch"
   },
   "devDependencies": {
-    "spicetify-creator": "^1.0.0",
     "@types/react": "^18.0.0",
+    "esbuild": "^0.28.0",
+    "spicetify-creator": "^1.0.0",
     "typescript": "^5.0.0"
   }
 }

@@ -10,7 +10,10 @@
       "Bash(where gh:*)",
       "Bash(curl:*)",
       "Bash(awk '{print $5}')",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npm run:*)",
+      "Bash(echo \"TSC_EXIT: $?\")",
+      "Bash(wc -l src/app.tsx src/engine/*.ts src/ui/*.tsx src/ui/*.ts src/styles.ts)"
     ]
   }
 }

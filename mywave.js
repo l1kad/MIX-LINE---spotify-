@@ -1,6 +1,7 @@
 "use strict";
-// MyWave — Infinite music stream for Spotify
-const MOODS = [
+(() => {
+  // src/engine/constants.ts
+  var MOODS = [
     { id: "chill", label: "Chill" },
     { id: "focus", label: "Focus" },
     { id: "hype", label: "Hype" },
@@ -12,1316 +13,1499 @@ const MOODS = [
     { id: "sleep", label: "Sleep" },
     { id: "acoustic", label: "Acoustic" },
     { id: "indie", label: "Indie" },
-    { id: "electronic", label: "Electronic" },
-];
-// Equalizer bar count / height for panel vs mini
-const EQ_COLS = 13;
-const EQ_ROWS = 7;
-const EQ_COLS_MINI = 9;
-const EQ_ROWS_MINI = 5;
-// ============================================================
-// Wave Engine
-// ============================================================
-class WaveEngine {
+    { id: "electronic", label: "Electronic" }
+  ];
+  var EQ_COLS = 13;
+  var EQ_ROWS = 7;
+  var EQ_COLS_MINI = 9;
+  var EQ_ROWS_MINI = 5;
+
+  // src/engine/WaveEngine.ts
+  var WaveEngine = class {
     constructor() {
-        this.playedUris = new Set();
-        this.blacklist = new Set();
-        this.isActive = false;
-        this.isLoading = false;
-        this.seedTrackName = "";
-        this.currentTrackName = "";
-        this.currentArtistName = "";
-        this.currentImageUrl = "";
-        this.currentUri = "";
-        this.lockedArtist = null;
-        this.songChangeListener = null;
-        this.librarySeeds = [];
-        this.stateListeners = new Set();
-        this.history = [];
-        this.activeMood = null;
-        this.isFavoritesMode = false;
-        this.historyReplayUri = null;
-        this.sessionStart = 0;
-        this.uniqueArtists = new Set();
-        this.artistCounts = new Map();
-        this.activeContextUri = null;
-        this._isAdopting = false;
-        this._pendingAdoptSeed = null;
-        this._recsBackoffUntil = 0;
-        this.topLikedArtist = null;
-        this.topLikedArtistUri = null;
-        this.pinnedMood = null;
-        this._isRefilling = false;
+      this.playedUris = /* @__PURE__ */ new Set();
+      this.blacklist = /* @__PURE__ */ new Set();
+      this.isActive = false;
+      this.isLoading = false;
+      this.seedTrackName = "";
+      this.currentTrackName = "";
+      this.currentArtistName = "";
+      this.currentImageUrl = "";
+      this.currentUri = "";
+      this.lockedArtist = null;
+      this.songChangeListener = null;
+      this.librarySeeds = [];
+      this.stateListeners = /* @__PURE__ */ new Set();
+      this.history = [];
+      this.activeMood = null;
+      this.isFavoritesMode = false;
+      this.historyReplayUri = null;
+      this.sessionStart = 0;
+      this.uniqueArtists = /* @__PURE__ */ new Set();
+      this.artistCounts = /* @__PURE__ */ new Map();
+      this.activeContextUri = null;
+      this._isAdopting = false;
+      this._pendingAdoptSeed = null;
+      this._recsBackoffUntil = 0;
+      this.topLikedArtist = null;
+      this.topLikedArtistUri = null;
+      this.pinnedMood = null;
+      this._isRefilling = false;
     }
     getState() {
-        const topArtists = [...this.artistCounts.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-            .map(([name, count]) => ({ name, count }));
-        return {
-            isActive: this.isActive,
-            isLoading: this.isLoading,
-            seedTrackName: this.seedTrackName,
-            currentTrackName: this.currentTrackName,
-            currentArtistName: this.currentArtistName,
-            currentImageUrl: this.currentImageUrl,
-            currentUri: this.currentUri,
-            lockedArtist: this.lockedArtist,
-            playedCount: this.playedUris.size,
-            history: this.history,
-            activeMood: this.activeMood,
-            isFavoritesMode: this.isFavoritesMode,
-            sessionMinutes: this.sessionStart ? Math.floor((Date.now() - this.sessionStart) / 60000) : 0,
-            uniqueArtistsCount: this.uniqueArtists.size,
-            topArtists,
-            topLikedArtist: this.topLikedArtist,
-            pinnedMood: this.pinnedMood,
-        };
+      const topArtists = [...this.artistCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, count]) => ({ name, count }));
+      return {
+        isActive: this.isActive,
+        isLoading: this.isLoading,
+        seedTrackName: this.seedTrackName,
+        currentTrackName: this.currentTrackName,
+        currentArtistName: this.currentArtistName,
+        currentImageUrl: this.currentImageUrl,
+        currentUri: this.currentUri,
+        lockedArtist: this.lockedArtist,
+        playedCount: this.playedUris.size,
+        history: this.history,
+        activeMood: this.activeMood,
+        isFavoritesMode: this.isFavoritesMode,
+        sessionMinutes: this.sessionStart ? Math.floor((Date.now() - this.sessionStart) / 6e4) : 0,
+        uniqueArtistsCount: this.uniqueArtists.size,
+        topArtists,
+        topLikedArtist: this.topLikedArtist,
+        pinnedMood: this.pinnedMood
+      };
     }
     subscribe(cb) {
-        this.stateListeners.add(cb);
-        return () => this.stateListeners.delete(cb);
+      this.stateListeners.add(cb);
+      return () => this.stateListeners.delete(cb);
     }
     notify() {
-        this.stateListeners.forEach((cb) => cb());
+      this.stateListeners.forEach((cb) => cb());
     }
     async start(moodId) {
-        if (this.isActive || this.isLoading)
-            return;
-        if (!moodId) {
-            const currentTrack = Spicetify.Player.data?.item;
-            if (!currentTrack) {
-                Spicetify.showNotification("Play a track first to start Mix", true);
-                return;
-            }
+      if (this.isActive || this.isLoading) return;
+      if (!moodId) {
+        const currentTrack = Spicetify.Player.data?.item;
+        if (!currentTrack) {
+          Spicetify.showNotification("Play a track first to start Mix", true);
+          return;
         }
-        this.isLoading = true;
-        this.activeMood = moodId || null;
+      }
+      this.isLoading = true;
+      this.activeMood = moodId || null;
+      this.notify();
+      try {
+        this.playedUris.clear();
+        this.blacklist.clear();
+        this.history = [];
+        this.uniqueArtists.clear();
+        this.artistCounts.clear();
+        this.sessionStart = Date.now();
+        this.lockedArtist = null;
+        if (moodId) {
+          this.seedTrackName = MOODS.find((m) => m.id === moodId)?.label || moodId;
+          await this.startMoodStation(moodId);
+        } else {
+          const currentTrack = Spicetify.Player.data.item;
+          this.seedTrackName = currentTrack.metadata?.title || "Unknown";
+          this.currentTrackName = this.seedTrackName;
+          this.currentArtistName = currentTrack.metadata?.artist_name || "";
+          this.currentImageUrl = currentTrack.metadata?.image_url || "";
+          this.currentUri = currentTrack.uri;
+          await this.loadLibrarySeeds();
+          await this.startMultiSeed(currentTrack.uri);
+        }
+        this.isActive = true;
+        this.isLoading = false;
+        this.attachListener();
+        this._captureContext();
         this.notify();
-        try {
-            this.playedUris.clear();
-            this.blacklist.clear();
-            this.history = [];
-            this.uniqueArtists.clear();
-            this.artistCounts.clear();
-            this.sessionStart = Date.now();
-            this.lockedArtist = null;
-            if (moodId) {
-                this.seedTrackName = MOODS.find(m => m.id === moodId)?.label || moodId;
-                await this.startMoodStation(moodId);
-            }
-            else {
-                const currentTrack = Spicetify.Player.data.item;
-                this.seedTrackName = currentTrack.metadata?.title || "Unknown";
-                this.currentTrackName = this.seedTrackName;
-                this.currentArtistName = currentTrack.metadata?.artist_name || "";
-                this.currentImageUrl = currentTrack.metadata?.image_url || "";
-                this.currentUri = currentTrack.uri;
-                await this.loadLibrarySeeds();
-                await this.startMultiSeed(currentTrack.uri);
-            }
-            this.isActive = true;
-            this.isLoading = false;
-            this.attachListener();
-            this._captureContext();
-            this.notify();
-            Spicetify.showNotification("Mix started!");
-        }
-        catch (err) {
-            console.error("[MyWave] Failed to start:", err);
-            this.isLoading = false;
-            this.notify();
-            Spicetify.showNotification("Failed to start mix", true);
-        }
+        Spicetify.showNotification("Mix started!");
+      } catch (err) {
+        console.error("[MyWave] Failed to start:", err);
+        this.isLoading = false;
+        this.notify();
+        Spicetify.showNotification("Failed to start mix", true);
+      }
     }
     async startFromPlaylist(playlistUri) {
-        if (this.isActive || this.isLoading)
-            return;
-        this.isLoading = true;
-        this.activeMood = null;
-        this.isFavoritesMode = false;
+      if (this.isActive || this.isLoading) return;
+      this.isLoading = true;
+      this.activeMood = null;
+      this.isFavoritesMode = false;
+      this.notify();
+      try {
+        this.playedUris.clear();
+        this.blacklist.clear();
+        this.history = [];
+        this.uniqueArtists.clear();
+        this.artistCounts.clear();
+        this.sessionStart = Date.now();
+        this.lockedArtist = null;
+        const content = await Spicetify.Platform.PlaylistAPI.getContents(playlistUri);
+        const tracks = (content?.items || []).filter((t) => t.uri?.startsWith("spotify:track:")).map((t) => t.uri);
+        if (tracks.length === 0) {
+          Spicetify.showNotification("Playlist is empty", true);
+          this.isLoading = false;
+          this.notify();
+          return;
+        }
+        this.librarySeeds = tracks;
+        this.seedTrackName = "Playlist";
+        await this.startMultiSeed(tracks[0]);
+        this.isActive = true;
+        this.isLoading = false;
+        this.attachListener();
+        this._captureContext();
         this.notify();
-        try {
-            this.playedUris.clear();
-            this.blacklist.clear();
-            this.history = [];
-            this.uniqueArtists.clear();
-            this.artistCounts.clear();
-            this.sessionStart = Date.now();
-            this.lockedArtist = null;
-            const content = await Spicetify.Platform.PlaylistAPI.getContents(playlistUri);
-            const tracks = (content?.items || [])
-                .filter((t) => t.uri?.startsWith("spotify:track:"))
-                .map((t) => t.uri);
-            if (tracks.length === 0) {
-                Spicetify.showNotification("Playlist is empty", true);
-                this.isLoading = false;
-                this.notify();
-                return;
-            }
-            this.librarySeeds = tracks;
-            this.seedTrackName = "Playlist";
-            await this.startMultiSeed(tracks[0]);
-            this.isActive = true;
-            this.isLoading = false;
-            this.attachListener();
-            this._captureContext();
-            this.notify();
-            Spicetify.showNotification("Mix started from playlist!");
-        }
-        catch (err) {
-            console.error("[MyWave] Playlist start failed:", err);
-            this.isLoading = false;
-            this.notify();
-            Spicetify.showNotification("Failed to start from playlist", true);
-        }
+        Spicetify.showNotification("Mix started from playlist!");
+      } catch (err) {
+        console.error("[MyWave] Playlist start failed:", err);
+        this.isLoading = false;
+        this.notify();
+        Spicetify.showNotification("Failed to start from playlist", true);
+      }
     }
     async reseed() {
-        if (!this.isActive)
-            return;
-        this.isLoading = true;
+      if (!this.isActive) return;
+      this.isLoading = true;
+      this.notify();
+      const effectiveMood = this.pinnedMood || this.activeMood;
+      const effectiveFavorites = this.pinnedMood === "__favorites__" || !this.pinnedMood && this.isFavoritesMode;
+      try {
+        if (this.lockedArtist && !this.pinnedMood) {
+          await this.startArtistStation();
+        } else if (effectiveFavorites) {
+          await this.loadLibrarySeeds();
+          if (this.librarySeeds.length > 0) {
+            const randomSeed = this.librarySeeds[Math.floor(Math.random() * this.librarySeeds.length)];
+            this.seedTrackName = "My Favorites";
+            this.isFavoritesMode = true;
+            this.activeMood = null;
+            await this.startMultiSeed(randomSeed);
+          }
+        } else if (effectiveMood && effectiveMood !== "__favorites__") {
+          this.activeMood = effectiveMood;
+          this.isFavoritesMode = false;
+          this.seedTrackName = MOODS.find((m) => m.id === effectiveMood)?.label || effectiveMood;
+          await this.startMoodStation(effectiveMood);
+        } else {
+          const cur = Spicetify.Player.data?.item;
+          if (cur?.uri) {
+            this.seedTrackName = cur.metadata?.title || "Unknown";
+            await this.startMultiSeed(cur.uri);
+          }
+        }
+        this._captureContext();
+        this.isLoading = false;
         this.notify();
-        // Pinned mood/favorites override current mode for reseed
-        const effectiveMood = this.pinnedMood || this.activeMood;
-        const effectiveFavorites = this.pinnedMood === "__favorites__" || (!this.pinnedMood && this.isFavoritesMode);
-        try {
-            if (this.lockedArtist && !this.pinnedMood) {
-                await this.startArtistStation();
-            }
-            else if (effectiveFavorites) {
-                await this.loadLibrarySeeds();
-                if (this.librarySeeds.length > 0) {
-                    const randomSeed = this.librarySeeds[Math.floor(Math.random() * this.librarySeeds.length)];
-                    this.seedTrackName = "My Favorites";
-                    this.isFavoritesMode = true;
-                    this.activeMood = null;
-                    await this.startMultiSeed(randomSeed);
-                }
-            }
-            else if (effectiveMood && effectiveMood !== "__favorites__") {
-                this.activeMood = effectiveMood;
-                this.isFavoritesMode = false;
-                this.seedTrackName = MOODS.find(m => m.id === effectiveMood)?.label || effectiveMood;
-                await this.startMoodStation(effectiveMood);
-            }
-            else {
-                const cur = Spicetify.Player.data?.item;
-                if (cur?.uri) {
-                    this.seedTrackName = cur.metadata?.title || "Unknown";
-                    await this.startMultiSeed(cur.uri);
-                }
-            }
-            this._captureContext();
-            this.isLoading = false;
-            this.notify();
-            Spicetify.showNotification("New mix started!");
-        }
-        catch (e) {
-            this.isLoading = false;
-            this.notify();
-            console.error("[MyWave] Reseed failed:", e);
-        }
+        Spicetify.showNotification("New mix started!");
+      } catch (e) {
+        this.isLoading = false;
+        this.notify();
+        console.error("[MyWave] Reseed failed:", e);
+      }
     }
     async reseedFromTrack() {
-        if (!this.isActive)
-            return;
-        const cur = Spicetify.Player.data?.item;
-        if (!cur?.uri)
-            return;
-        this.isLoading = true;
-        this.lockedArtist = null;
-        this.activeMood = null;
-        this.seedTrackName = cur.metadata?.title || "Unknown";
+      if (!this.isActive) return;
+      const cur = Spicetify.Player.data?.item;
+      if (!cur?.uri) return;
+      this.isLoading = true;
+      this.lockedArtist = null;
+      this.activeMood = null;
+      this.seedTrackName = cur.metadata?.title || "Unknown";
+      this.notify();
+      try {
+        await this.startMultiSeed(cur.uri);
+        this._captureContext();
+        this.isLoading = false;
         this.notify();
-        try {
-            await this.startMultiSeed(cur.uri);
-            this._captureContext();
-            this.isLoading = false;
-            this.notify();
-            Spicetify.showNotification(`Mix from: ${this.seedTrackName}`);
-        }
-        catch (e) {
-            this.isLoading = false;
-            this.notify();
-            console.error("[MyWave] Reseed from track failed:", e);
-        }
+        Spicetify.showNotification(`Mix from: ${this.seedTrackName}`);
+      } catch (e) {
+        this.isLoading = false;
+        this.notify();
+        console.error("[MyWave] Reseed from track failed:", e);
+      }
     }
     togglePinMood(moodId) {
-        if (this.pinnedMood === moodId) {
-            this.pinnedMood = null;
-            this.notify();
-            Spicetify.showNotification("Mood unpinned");
-        }
-        else {
-            this.pinnedMood = moodId;
-            this.notify();
-            Spicetify.showNotification(`Pinned: ${MOODS.find(m => m.id === moodId)?.label || moodId}`);
-        }
+      if (this.pinnedMood === moodId) {
+        this.pinnedMood = null;
+        this.notify();
+        Spicetify.showNotification("Mood unpinned");
+      } else {
+        this.pinnedMood = moodId;
+        this.notify();
+        Spicetify.showNotification(`Pinned: ${MOODS.find((m) => m.id === moodId)?.label || moodId}`);
+      }
     }
     togglePinFavorites() {
-        if (this.pinnedMood === "__favorites__") {
-            this.pinnedMood = null;
-            this.notify();
-            Spicetify.showNotification("Favorites unpinned");
-        }
-        else {
-            this.pinnedMood = "__favorites__";
-            this.notify();
-            Spicetify.showNotification("Pinned: Favorites");
-        }
+      if (this.pinnedMood === "__favorites__") {
+        this.pinnedMood = null;
+        this.notify();
+        Spicetify.showNotification("Favorites unpinned");
+      } else {
+        this.pinnedMood = "__favorites__";
+        this.notify();
+        Spicetify.showNotification("Pinned: Favorites");
+      }
     }
     async startFavorites() {
-        if (this.isActive || this.isLoading)
-            return;
-        this.isLoading = true;
-        this.isFavoritesMode = true;
-        this.activeMood = null;
+      if (this.isActive || this.isLoading) return;
+      this.isLoading = true;
+      this.isFavoritesMode = true;
+      this.activeMood = null;
+      this.notify();
+      try {
+        this.playedUris.clear();
+        this.blacklist.clear();
+        this.history = [];
+        this.uniqueArtists.clear();
+        this.artistCounts.clear();
+        this.sessionStart = Date.now();
+        this.lockedArtist = null;
+        await this.loadLibrarySeeds();
+        if (this.librarySeeds.length === 0) {
+          Spicetify.showNotification("No liked songs found", true);
+          this.isLoading = false;
+          this.isFavoritesMode = false;
+          this.notify();
+          return;
+        }
+        this.seedTrackName = "My Favorites";
+        await this.startMultiSeed(this.librarySeeds[0]);
+        this.isActive = true;
+        this.isLoading = false;
+        this.attachListener();
+        this._captureContext();
         this.notify();
-        try {
-            this.playedUris.clear();
-            this.blacklist.clear();
-            this.history = [];
-            this.uniqueArtists.clear();
-            this.artistCounts.clear();
-            this.sessionStart = Date.now();
-            this.lockedArtist = null;
-            await this.loadLibrarySeeds();
-            if (this.librarySeeds.length === 0) {
-                Spicetify.showNotification("No liked songs found", true);
-                this.isLoading = false;
-                this.isFavoritesMode = false;
-                this.notify();
-                return;
-            }
-            this.seedTrackName = "My Favorites";
-            await this.startMultiSeed(this.librarySeeds[0]);
-            this.isActive = true;
-            this.isLoading = false;
-            this.attachListener();
-            this._captureContext();
-            this.notify();
-            Spicetify.showNotification("Mix: Playing from your favorites!");
-        }
-        catch (err) {
-            console.error("[MyWave] Favorites start failed:", err);
-            this.isLoading = false;
-            this.isFavoritesMode = false;
-            this.notify();
-            Spicetify.showNotification("Failed to start favorites mix", true);
-        }
+        Spicetify.showNotification("Mix: Playing from your favorites!");
+      } catch (err) {
+        console.error("[MyWave] Favorites start failed:", err);
+        this.isLoading = false;
+        this.isFavoritesMode = false;
+        this.notify();
+        Spicetify.showNotification("Failed to start favorites mix", true);
+      }
     }
     toggleLockArtist() {
-        if (!this.isActive)
-            return;
-        if (this.lockedArtist) {
-            this.lockedArtist = null;
-            this.notify();
-            Spicetify.showNotification("Artist unlocked");
-        }
-        else {
-            this.lockedArtist = this.currentArtistName;
-            this.notify();
-            Spicetify.showNotification(`Locked to ${this.currentArtistName}`);
-            this.startArtistStation().catch(() => { });
-        }
+      if (!this.isActive) return;
+      if (this.lockedArtist) {
+        this.lockedArtist = null;
+        this.notify();
+        Spicetify.showNotification("Artist unlocked");
+      } else {
+        this.lockedArtist = this.currentArtistName;
+        this.notify();
+        Spicetify.showNotification(`Locked to ${this.currentArtistName}`);
+        this.startArtistStation().catch(() => {
+        });
+      }
     }
     async likeCurrentTrack() {
-        if (!this.currentUri)
-            return;
-        try {
-            await Spicetify.Platform.LibraryAPI.add({ uris: [this.currentUri] });
-            Spicetify.showNotification("Added to Liked Songs");
-        }
-        catch { }
+      if (!this.currentUri) return;
+      try {
+        await Spicetify.Platform.LibraryAPI.add({ uris: [this.currentUri] });
+        Spicetify.showNotification("Added to Liked Songs");
+      } catch {
+      }
     }
     async dislikeCurrentTrack() {
-        if (!this.currentUri)
-            return;
-        this.blacklist.add(this.currentUri);
-        Spicetify.Player.next();
+      if (!this.currentUri) return;
+      this.blacklist.add(this.currentUri);
+      Spicetify.Player.next();
     }
     playFromHistory(uri) {
-        this.historyReplayUri = uri;
-        try {
-            Spicetify.Platform.PlayerAPI.play({ uri }, {}, {});
-        }
-        catch { }
+      this.historyReplayUri = uri;
+      try {
+        Spicetify.Platform.PlayerAPI.play({ uri }, {}, {});
+      } catch {
+      }
     }
     // Multi-seed: try recommendations API with 429 backoff, fallback to station
     async startMultiSeed(currentUri) {
-        const seeds = this.pickMultipleSeeds(currentUri, 5);
-        const seedIds = seeds.map(s => s.split(":").pop()).filter(Boolean);
-        if (Date.now() > this._recsBackoffUntil) {
-            try {
-                const url = `https://api.spotify.com/v1/recommendations?seed_tracks=${seedIds.join(",")}&limit=50`;
-                const rec = await Spicetify.CosmosAsync.get(url);
-                if (rec?.tracks?.length > 0) {
-                    const uris = rec.tracks.map((t) => t.uri).filter(Boolean);
-                    await Spicetify.addToQueue(uris.slice(0, 20).map((u) => ({ uri: u })));
-                    await Spicetify.Platform.PlayerAPI.play({ uri: uris[0] }, {}, {});
-                    console.log("[MyWave] Started via recommendations,", uris.length, "tracks");
-                    return;
-                }
-            }
-            catch (e) {
-                const status = e?.status || e?.response?.status || e?.statusCode;
-                if (status === 429) {
-                    const retryAfter = parseInt(e?.headers?.["retry-after"] || "300", 10);
-                    console.log(`[MyWave] Recommendations 429, backing off ${retryAfter}s`);
-                    this._recsBackoffUntil = Date.now() + retryAfter * 1000;
-                }
-                else {
-                    console.log("[MyWave] Recommendations failed (status:", status, "):", e);
-                }
-            }
+      const seeds = this.pickMultipleSeeds(currentUri, 5);
+      const seedIds = seeds.map((s) => s.split(":").pop()).filter(Boolean);
+      if (Date.now() > this._recsBackoffUntil) {
+        try {
+          const url = `https://api.spotify.com/v1/recommendations?seed_tracks=${seedIds.join(",")}&limit=50`;
+          const rec = await Spicetify.CosmosAsync.get(url);
+          if (rec?.tracks?.length > 0) {
+            const uris = rec.tracks.map((t) => t.uri).filter(Boolean);
+            await Spicetify.addToQueue(uris.slice(0, 20).map((u) => ({ uri: u })));
+            await Spicetify.Platform.PlayerAPI.play({ uri: uris[0] }, {}, {});
+            console.log("[MyWave] Started via recommendations,", uris.length, "tracks");
+            return;
+          }
+        } catch (e) {
+          const status = e?.status || e?.response?.status || e?.statusCode;
+          if (status === 429) {
+            const retryAfter = parseInt(e?.headers?.["retry-after"] || "300", 10);
+            console.log(`[MyWave] Recommendations 429, backing off ${retryAfter}s`);
+            this._recsBackoffUntil = Date.now() + retryAfter * 1e3;
+          } else {
+            console.log("[MyWave] Recommendations failed (status:", status, "):", e);
+          }
         }
-        const seedId = seedIds[0];
-        await this.playStation(`spotify:station:track:${seedId}`);
+      }
+      const seedId = seedIds[0];
+      await this.playStation(`spotify:station:track:${seedId}`);
     }
     pickMultipleSeeds(currentUri, count) {
-        const result = [currentUri];
-        const pool = [...this.librarySeeds].filter(u => u !== currentUri);
-        for (let i = 0; i < count - 1 && pool.length > 0; i++) {
-            const idx = Math.floor(Math.random() * pool.length);
-            result.push(pool.splice(idx, 1)[0]);
-        }
-        return result;
+      const result = [currentUri];
+      const pool = [...this.librarySeeds].filter((u) => u !== currentUri);
+      for (let i = 0; i < count - 1 && pool.length > 0; i++) {
+        const idx = Math.floor(Math.random() * pool.length);
+        result.push(pool.splice(idx, 1)[0]);
+      }
+      return result;
     }
     async startArtistStation() {
-        if (!this.lockedArtist)
-            return;
-        const item = Spicetify.Player.data?.item;
-        const artistUri = item?.metadata?.artist_uri || item?.artists?.[0]?.uri;
-        if (artistUri) {
-            const artistId = artistUri.split(":").pop();
-            try {
-                await this.playStation(`spotify:station:artist:${artistId}`);
-                return;
-            }
-            catch { }
-        }
+      if (!this.lockedArtist) return;
+      const item = Spicetify.Player.data?.item;
+      const artistUri = item?.metadata?.artist_uri || item?.artists?.[0]?.uri;
+      if (artistUri) {
+        const artistId = artistUri.split(":").pop();
         try {
-            const res = await Spicetify.CosmosAsync.get(`https://api.spotify.com/v1/search?q=${encodeURIComponent(this.lockedArtist)}&type=artist&limit=1`);
-            const id = res?.artists?.items?.[0]?.id;
-            if (id) {
-                await this.playStation(`spotify:station:artist:${id}`);
-                return;
-            }
+          await this.playStation(`spotify:station:artist:${artistId}`);
+          return;
+        } catch {
         }
-        catch { }
+      }
+      try {
+        const res = await Spicetify.CosmosAsync.get(
+          `https://api.spotify.com/v1/search?q=${encodeURIComponent(this.lockedArtist)}&type=artist&limit=1`
+        );
+        const id = res?.artists?.items?.[0]?.id;
+        if (id) {
+          await this.playStation(`spotify:station:artist:${id}`);
+          return;
+        }
+      } catch {
+      }
     }
     async startMoodStation(moodId) {
-        // 1) Try genre station directly
-        try {
-            await this.playStation(`spotify:station:genre:${moodId}`);
+      try {
+        await this.playStation(`spotify:station:genre:${moodId}`);
+        return;
+      } catch {
+      }
+      try {
+        const results = await Spicetify.CosmosAsync.get(
+          `https://api.spotify.com/v1/search?q=${encodeURIComponent(moodId + " mood")}&type=playlist&limit=5`
+        );
+        const items = results?.playlists?.items;
+        if (items?.length) {
+          const best = items.find((p) => p.owner?.id === "spotify") || items[0];
+          const pid = best.uri?.split(":").pop() || best.id;
+          if (pid) {
+            await this.playStation(`spotify:station:playlist:${pid}`);
             return;
+          }
         }
-        catch { }
-        // 2) Try Spotify search for a playlist matching the mood
-        try {
-            const results = await Spicetify.CosmosAsync.get(`https://api.spotify.com/v1/search?q=${encodeURIComponent(moodId + " mood")}&type=playlist&limit=5`);
-            const items = results?.playlists?.items;
-            if (items?.length) {
-                // Prefer playlists by Spotify
-                const best = items.find((p) => p.owner?.id === "spotify") || items[0];
-                const pid = best.uri?.split(":").pop() || best.id;
-                if (pid) {
-                    await this.playStation(`spotify:station:playlist:${pid}`);
-                    return;
-                }
-            }
+      } catch {
+      }
+      try {
+        const results = await Spicetify.CosmosAsync.get(
+          `https://api.spotify.com/v1/search?q=${encodeURIComponent(moodId)}&type=playlist&limit=5`
+        );
+        const items = results?.playlists?.items;
+        if (items?.length) {
+          const best = items.find((p) => p.owner?.id === "spotify") || items[0];
+          if (best.uri) {
+            await Spicetify.Platform.PlayerAPI.play(
+              { uri: best.uri },
+              {},
+              { skipTo: { trackIndex: 0 } }
+            );
+            return;
+          }
         }
-        catch { }
-        // 3) Fallback: try playing the playlist directly (not as station)
-        try {
-            const results = await Spicetify.CosmosAsync.get(`https://api.spotify.com/v1/search?q=${encodeURIComponent(moodId)}&type=playlist&limit=5`);
-            const items = results?.playlists?.items;
-            if (items?.length) {
-                const best = items.find((p) => p.owner?.id === "spotify") || items[0];
-                if (best.uri) {
-                    await Spicetify.Platform.PlayerAPI.play({ uri: best.uri }, {}, { skipTo: { trackIndex: 0 } });
-                    return;
-                }
-            }
-        }
-        catch { }
-        throw new Error("Could not start mood station");
+      } catch {
+      }
+      throw new Error("Could not start mood station");
     }
     async playStation(stationUri) {
-        try {
-            await Spicetify.Platform.PlayerAPI.play({ uri: stationUri }, {}, { skipTo: { trackIndex: 0 } });
-            return;
-        }
-        catch (e) {
-            console.log("[MyWave] PlayerAPI failed:", e);
-        }
-        try {
-            await Spicetify.Player.playUri(stationUri);
-            return;
-        }
-        catch (e) {
-            console.log("[MyWave] playUri failed:", e);
-        }
-        throw new Error("Could not start station");
+      try {
+        await Spicetify.Platform.PlayerAPI.play(
+          { uri: stationUri },
+          {},
+          { skipTo: { trackIndex: 0 } }
+        );
+        return;
+      } catch (e) {
+        console.log("[MyWave] PlayerAPI failed:", e);
+      }
+      try {
+        await Spicetify.Player.playUri(stationUri);
+        return;
+      } catch (e) {
+        console.log("[MyWave] playUri failed:", e);
+      }
+      throw new Error("Could not start station");
     }
     async loadLibrarySeeds() {
-        try {
-            const liked = await Spicetify.Platform.LibraryAPI.getTracks({
-                limit: 200, offset: 0, sort: { field: "ADDED_AT", order: "DESC" },
-            });
-            if (liked?.items?.length) {
-                this.librarySeeds = liked.items.map((t) => t.uri).filter(Boolean);
-                return;
-            }
+      try {
+        const liked = await Spicetify.Platform.LibraryAPI.getTracks({
+          limit: 200,
+          offset: 0,
+          sort: { field: "ADDED_AT", order: "DESC" }
+        });
+        if (liked?.items?.length) {
+          this.librarySeeds = liked.items.map((t) => t.uri).filter(Boolean);
+          return;
         }
-        catch { }
-        try {
-            const rootlist = await Spicetify.Platform.RootlistAPI.getContents();
-            const playlists = rootlist?.items?.filter((i) => i.type === "playlist") || [];
-            const seeds = [];
-            for (const pl of playlists.slice(0, 5)) {
-                try {
-                    const content = await Spicetify.Platform.PlaylistAPI.getContents(pl.uri);
-                    if (content?.items) {
-                        for (const item of content.items.slice(0, 50)) {
-                            if (item.uri?.startsWith("spotify:track:"))
-                                seeds.push(item.uri);
-                        }
-                    }
-                }
-                catch { }
+      } catch {
+      }
+      try {
+        const rootlist = await Spicetify.Platform.RootlistAPI.getContents();
+        const playlists = rootlist?.items?.filter((i) => i.type === "playlist") || [];
+        const seeds = [];
+        for (const pl of playlists.slice(0, 5)) {
+          try {
+            const content = await Spicetify.Platform.PlaylistAPI.getContents(pl.uri);
+            if (content?.items) {
+              for (const item of content.items.slice(0, 50)) {
+                if (item.uri?.startsWith("spotify:track:")) seeds.push(item.uri);
+              }
             }
-            this.librarySeeds = seeds;
+          } catch {
+          }
         }
-        catch { }
+        this.librarySeeds = seeds;
+      } catch {
+      }
     }
     async loadTopLikedArtist() {
-        try {
-            const liked = await Spicetify.Platform.LibraryAPI.getTracks({
-                limit: 200, offset: 0, sort: { field: "ADDED_AT", order: "DESC" },
-            });
-            if (!liked?.items?.length)
-                return;
-            const counts = new Map();
-            for (const t of liked.items) {
-                const name = t.artists?.[0]?.name || t.metadata?.artist_name;
-                const uri = t.artists?.[0]?.uri || t.metadata?.artist_uri;
-                if (name) {
-                    const prev = counts.get(name);
-                    counts.set(name, { count: (prev?.count || 0) + 1, uri: uri || prev?.uri || "" });
-                }
-            }
-            let top = "";
-            let topUri = "";
-            let max = 0;
-            for (const [name, data] of counts) {
-                if (data.count > max) {
-                    top = name;
-                    topUri = data.uri;
-                    max = data.count;
-                }
-            }
-            if (top) {
-                this.topLikedArtist = top;
-                this.topLikedArtistUri = topUri || null;
-                console.log("[MyWave] Top liked artist:", top, topUri);
-                this.notify();
-            }
+      try {
+        const liked = await Spicetify.Platform.LibraryAPI.getTracks({
+          limit: 200,
+          offset: 0,
+          sort: { field: "ADDED_AT", order: "DESC" }
+        });
+        if (!liked?.items?.length) return;
+        const counts = /* @__PURE__ */ new Map();
+        for (const t of liked.items) {
+          const name = t.artists?.[0]?.name || t.metadata?.artist_name;
+          const uri = t.artists?.[0]?.uri || t.metadata?.artist_uri;
+          if (name) {
+            const prev = counts.get(name);
+            counts.set(name, { count: (prev?.count || 0) + 1, uri: uri || prev?.uri || "" });
+          }
         }
-        catch (e) {
-            console.log("[MyWave] Failed to load top artist:", e);
+        let top = "";
+        let topUri = "";
+        let max = 0;
+        for (const [name, data] of counts) {
+          if (data.count > max) {
+            top = name;
+            topUri = data.uri;
+            max = data.count;
+          }
         }
+        if (top) {
+          this.topLikedArtist = top;
+          this.topLikedArtistUri = topUri || null;
+          console.log("[MyWave] Top liked artist:", top, topUri);
+          this.notify();
+        }
+      } catch (e) {
+        console.log("[MyWave] Failed to load top artist:", e);
+      }
     }
     async startFromArtistName(artistName) {
-        if (this.isActive || this.isLoading)
-            return;
-        this.isLoading = true;
-        this.activeMood = null;
-        this.isFavoritesMode = false;
+      if (this.isActive || this.isLoading) return;
+      this.isLoading = true;
+      this.activeMood = null;
+      this.isFavoritesMode = false;
+      this.notify();
+      try {
+        this.playedUris.clear();
+        this.blacklist.clear();
+        this.history = [];
+        this.uniqueArtists.clear();
+        this.artistCounts.clear();
+        this.sessionStart = Date.now();
+        this.lockedArtist = artistName;
+        this.seedTrackName = artistName;
+        let artistId = null;
+        if (this.topLikedArtistUri && artistName === this.topLikedArtist) {
+          artistId = this.topLikedArtistUri.split(":").pop() || null;
+        }
+        if (!artistId) {
+          const trackByArtist = this.librarySeeds.length > 0 ? this.librarySeeds[0] : Spicetify.Player.data?.item?.uri;
+          if (trackByArtist) {
+            const trackId = trackByArtist.split(":").pop();
+            if (trackId) {
+              await this.playStation(`spotify:station:track:${trackId}`);
+              this.isActive = true;
+              this.isLoading = false;
+              this.attachListener();
+              this._captureContext();
+              this.notify();
+              Spicetify.showNotification(`Mix: ${artistName}!`);
+              return;
+            }
+          }
+        }
+        if (artistId) {
+          await this.playStation(`spotify:station:artist:${artistId}`);
+        } else {
+          throw new Error("No artist data available");
+        }
+        this.isActive = true;
+        this.isLoading = false;
+        this.attachListener();
+        this._captureContext();
         this.notify();
-        try {
-            this.playedUris.clear();
-            this.blacklist.clear();
-            this.history = [];
-            this.uniqueArtists.clear();
-            this.artistCounts.clear();
-            this.sessionStart = Date.now();
-            this.lockedArtist = artistName;
-            this.seedTrackName = artistName;
-            let artistId = null;
-            // 1) Use saved URI if this is the top liked artist
-            if (this.topLikedArtistUri && artistName === this.topLikedArtist) {
-                artistId = this.topLikedArtistUri.split(":").pop() || null;
-            }
-            // 2) Fallback: try liked songs to find a track by this artist, use station from that track
-            if (!artistId) {
-                const trackByArtist = this.librarySeeds.length > 0
-                    ? this.librarySeeds[0]
-                    : Spicetify.Player.data?.item?.uri;
-                if (trackByArtist) {
-                    const trackId = trackByArtist.split(":").pop();
-                    if (trackId) {
-                        await this.playStation(`spotify:station:track:${trackId}`);
-                        this.isActive = true;
-                        this.isLoading = false;
-                        this.attachListener();
-                        this._captureContext();
-                        this.notify();
-                        Spicetify.showNotification(`Mix: ${artistName}!`);
-                        return;
-                    }
-                }
-            }
-            if (artistId) {
-                await this.playStation(`spotify:station:artist:${artistId}`);
-            }
-            else {
-                throw new Error("No artist data available");
-            }
-            this.isActive = true;
-            this.isLoading = false;
-            this.attachListener();
-            this._captureContext();
-            this.notify();
-            Spicetify.showNotification(`Mix: ${artistName}!`);
-        }
-        catch (err) {
-            console.error("[MyWave] Artist start failed:", err);
-            this.isLoading = false;
-            this.lockedArtist = null;
-            this.notify();
-            Spicetify.showNotification("Failed to start artist mix", true);
-        }
+        Spicetify.showNotification(`Mix: ${artistName}!`);
+      } catch (err) {
+        console.error("[MyWave] Artist start failed:", err);
+        this.isLoading = false;
+        this.lockedArtist = null;
+        this.notify();
+        Spicetify.showNotification("Failed to start artist mix", true);
+      }
     }
     stop() {
-        this.isActive = false;
-        this.isLoading = false;
-        this.activeMood = null;
-        this.isFavoritesMode = false;
-        this.lockedArtist = null;
-        this.activeContextUri = null;
-        this._isAdopting = false;
-        this._pendingAdoptSeed = null;
-        this.detachListener();
-        this.notify();
-        Spicetify.showNotification(`Mix stopped (${this.playedUris.size} tracks)`);
+      this.isActive = false;
+      this.isLoading = false;
+      this.activeMood = null;
+      this.isFavoritesMode = false;
+      this.lockedArtist = null;
+      this.activeContextUri = null;
+      this._isAdopting = false;
+      this._pendingAdoptSeed = null;
+      this.detachListener();
+      this.notify();
+      Spicetify.showNotification(`Mix stopped (${this.playedUris.size} tracks)`);
     }
     attachListener() {
-        this.detachListener();
-        this.songChangeListener = () => this.onSongChange();
-        Spicetify.Player.addEventListener("songchange", this.songChangeListener);
+      this.detachListener();
+      this.songChangeListener = () => this.onSongChange();
+      Spicetify.Player.addEventListener("songchange", this.songChangeListener);
     }
     detachListener() {
-        if (this.songChangeListener) {
-            Spicetify.Player.removeEventListener("songchange", this.songChangeListener);
-            this.songChangeListener = null;
-        }
+      if (this.songChangeListener) {
+        Spicetify.Player.removeEventListener("songchange", this.songChangeListener);
+        this.songChangeListener = null;
+      }
     }
     _captureContextImmediate() {
-        this.activeContextUri = Spicetify.Player.data?.context?.uri || null;
-        console.log("[MyWave] Captured context (immediate):", this.activeContextUri);
+      this.activeContextUri = Spicetify.Player.data?.context?.uri || null;
+      console.log("[MyWave] Captured context (immediate):", this.activeContextUri);
     }
     _captureContext() {
-        // Try immediately, then recheck after Spotify updates context
-        this._captureContextImmediate();
-        setTimeout(() => {
-            const updated = Spicetify.Player.data?.context?.uri || null;
-            if (updated && updated !== this.activeContextUri) {
-                this.activeContextUri = updated;
-                console.log("[MyWave] Captured context (delayed update):", this.activeContextUri);
-            }
-        }, 800);
+      this._captureContextImmediate();
+      setTimeout(() => {
+        const updated = Spicetify.Player.data?.context?.uri || null;
+        if (updated && updated !== this.activeContextUri) {
+          this.activeContextUri = updated;
+          console.log("[MyWave] Captured context (delayed update):", this.activeContextUri);
+        }
+      }, 800);
     }
     // Adopt: let current track finish, then start station from it on next songchange
     adoptTrack(uri) {
-        if (!this.isActive || this._isAdopting)
-            return;
-        this.seedTrackName = Spicetify.Player.data?.item?.metadata?.title || "Manual pick";
-        this._pendingAdoptSeed = uri;
-        this.activeContextUri = Spicetify.Player.data?.context?.uri || null;
-        Spicetify.showNotification("Mix continues from this track");
+      if (!this.isActive || this._isAdopting) return;
+      this.seedTrackName = Spicetify.Player.data?.item?.metadata?.title || "Manual pick";
+      this._pendingAdoptSeed = uri;
+      this.activeContextUri = Spicetify.Player.data?.context?.uri || null;
+      Spicetify.showNotification("Mix continues from this track");
     }
     async checkAndRefillQueue() {
-        if (this._isRefilling || !this.isActive)
-            return;
-        try {
-            const queue = await Spicetify.CosmosAsync.get("sp://player/v2/main");
-            const nextTracks = queue?.next_tracks || [];
-            const remaining = nextTracks.filter((t) => !t.removed).length;
-            console.log("[MyWave] Queue remaining:", remaining);
-            if (remaining <= 3) {
-                this._isRefilling = true;
-                const currentUri = Spicetify.Player.data?.item?.uri;
-                if (currentUri) {
-                    const seedId = currentUri.split(":").pop();
-                    if (seedId) {
-                        try {
-                            const url = `https://api.spotify.com/v1/recommendations?seed_tracks=${seedId}&limit=20`;
-                            const rec = await Spicetify.CosmosAsync.get(url);
-                            if (rec?.tracks?.length > 0) {
-                                const uris = rec.tracks
-                                    .map((t) => t.uri)
-                                    .filter((u) => u && !this.playedUris.has(u) && !this.blacklist.has(u));
-                                if (uris.length > 0) {
-                                    await Spicetify.addToQueue(uris.slice(0, 10).map((u) => ({ uri: u })));
-                                    console.log("[MyWave] Refilled queue with", Math.min(uris.length, 10), "tracks");
-                                    this._isRefilling = false;
-                                    return;
-                                }
-                            }
-                        }
-                        catch (e) {
-                            console.log("[MyWave] Refill via recommendations failed:", e);
-                        }
-                    }
+      if (this._isRefilling || !this.isActive) return;
+      try {
+        const queue = await Spicetify.CosmosAsync.get("sp://player/v2/main");
+        const nextTracks = queue?.next_tracks || [];
+        const remaining = nextTracks.filter((t) => !t.removed).length;
+        console.log("[MyWave] Queue remaining:", remaining);
+        if (remaining <= 3) {
+          this._isRefilling = true;
+          const currentUri = Spicetify.Player.data?.item?.uri;
+          if (currentUri) {
+            const seedId = currentUri.split(":").pop();
+            if (seedId) {
+              try {
+                const url = `https://api.spotify.com/v1/recommendations?seed_tracks=${seedId}&limit=20`;
+                const rec = await Spicetify.CosmosAsync.get(url);
+                if (rec?.tracks?.length > 0) {
+                  const uris = rec.tracks.map((t) => t.uri).filter((u) => u && !this.playedUris.has(u) && !this.blacklist.has(u));
+                  if (uris.length > 0) {
+                    await Spicetify.addToQueue(uris.slice(0, 10).map((u) => ({ uri: u })));
+                    console.log("[MyWave] Refilled queue with", Math.min(uris.length, 10), "tracks");
+                    this._isRefilling = false;
+                    return;
+                  }
                 }
-                this._isRefilling = false;
+              } catch (e) {
+                console.log("[MyWave] Refill via recommendations failed:", e);
+              }
             }
+          }
+          this._isRefilling = false;
         }
-        catch (e) {
-            console.log("[MyWave] Queue check failed:", e);
-            this._isRefilling = false;
-        }
+      } catch (e) {
+        console.log("[MyWave] Queue check failed:", e);
+        this._isRefilling = false;
+      }
     }
     onSongChange() {
-        if (!this.isActive)
-            return;
-        const item = Spicetify.Player.data?.item;
-        if (!item)
-            return;
-        // Skip blacklisted tracks
-        if (this.blacklist.has(item.uri)) {
-            console.log("[MyWave] Skipping blacklisted track");
-            setTimeout(() => Spicetify.Player.next(), 200);
-            return;
-        }
-        // Update current track state
-        this.currentTrackName = item.metadata?.title || "Unknown";
-        this.currentArtistName = item.metadata?.artist_name || "";
-        this.currentImageUrl = item.metadata?.image_url || "";
-        this.currentUri = item.uri;
-        this.playedUris.add(item.uri);
-        if (this.currentArtistName) {
-            this.uniqueArtists.add(this.currentArtistName);
-            this.artistCounts.set(this.currentArtistName, (this.artistCounts.get(this.currentArtistName) || 0) + 1);
-        }
-        if (this.historyReplayUri === item.uri) {
-            this.historyReplayUri = null;
-            this.notify();
-            return;
-        }
+      if (!this.isActive) return;
+      const item = Spicetify.Player.data?.item;
+      if (!item) return;
+      if (this.blacklist.has(item.uri)) {
+        console.log("[MyWave] Skipping blacklisted track");
+        setTimeout(() => Spicetify.Player.next(), 200);
+        return;
+      }
+      this.currentTrackName = item.metadata?.title || "Unknown";
+      this.currentArtistName = item.metadata?.artist_name || "";
+      this.currentImageUrl = item.metadata?.image_url || "";
+      this.currentUri = item.uri;
+      this.playedUris.add(item.uri);
+      if (this.currentArtistName) {
+        this.uniqueArtists.add(this.currentArtistName);
+        this.artistCounts.set(
+          this.currentArtistName,
+          (this.artistCounts.get(this.currentArtistName) || 0) + 1
+        );
+      }
+      if (this.historyReplayUri === item.uri) {
         this.historyReplayUri = null;
-        this.history.unshift({
-            uri: item.uri,
-            name: this.currentTrackName,
-            artist: this.currentArtistName,
-            imageUrl: this.currentImageUrl,
-            timestamp: Date.now(),
-        });
-        if (this.history.length > 50)
-            this.history.pop();
         this.notify();
-        // Auto-refill queue when running low
-        this.checkAndRefillQueue();
+        return;
+      }
+      this.historyReplayUri = null;
+      this.history.unshift({
+        uri: item.uri,
+        name: this.currentTrackName,
+        artist: this.currentArtistName,
+        imageUrl: this.currentImageUrl,
+        timestamp: Date.now()
+      });
+      if (this.history.length > 50) this.history.pop();
+      this.notify();
+      this.checkAndRefillQueue();
     }
-}
-// ============================================================
-// UI
-// ============================================================
-let React;
-let ReactDOM;
-const engine = new WaveEngine();
-let newMixCounter = 0;
-const newMixListeners = new Set();
-function triggerNewMix() { newMixCounter++; newMixListeners.forEach(cb => cb()); }
-function useNewMixSignal() {
-    const [count, setCount] = React.useState(newMixCounter);
-    React.useEffect(() => {
-        const cb = () => setCount(newMixCounter);
-        newMixListeners.add(cb);
-        return () => { newMixListeners.delete(cb); };
-    }, []);
-    return count;
-}
-function useEngineState() {
+  };
+
+  // src/ui/hooks.ts
+  var React = Spicetify.React;
+  var engine;
+  function setHooksEngine(e) {
+    engine = e;
+  }
+  function useEngineState() {
     const [state, setState] = React.useState(engine.getState());
     React.useEffect(() => {
-        const unsub = engine.subscribe(() => setState({ ...engine.getState() }));
-        return () => { unsub(); };
+      const unsub = engine.subscribe(() => setState({ ...engine.getState() }));
+      return () => {
+        unsub();
+      };
     }, []);
     return state;
-}
-function useTimeTick(active) {
+  }
+  function useTimeTick(active) {
     const [, setTick] = React.useState(0);
     React.useEffect(() => {
-        if (!active)
-            return;
-        const id = setInterval(() => setTick(t => t + 1), 30000);
-        return () => clearInterval(id);
+      if (!active) return;
+      const id = setInterval(() => setTick((t) => t + 1), 3e4);
+      return () => clearInterval(id);
     }, [active]);
-}
-const h = (...args) => React.createElement(...args);
-// --- Icons ---
-function WaveIcon({ size }) {
-    return h("svg", { width: size, height: size, viewBox: "0 0 16 16", fill: "currentColor", className: "mw-wave-icon" }, h("rect", { className: "mw-wbar mw-wbar-1", x: 1, y: 6, width: 2, height: 4, rx: 1 }), h("rect", { className: "mw-wbar mw-wbar-2", x: 5, y: 3, width: 2, height: 10, rx: 1 }), h("rect", { className: "mw-wbar mw-wbar-3", x: 9, y: 5, width: 2, height: 6, rx: 1 }), h("rect", { className: "mw-wbar mw-wbar-4", x: 13, y: 4, width: 2, height: 8, rx: 1 }));
-}
-function PlayIcon({ size = 20 }) {
-    return h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "currentColor" }, h("path", { d: "M8 5v14l11-7z" }));
-}
-function StopIcon({ size = 16 }) {
-    return h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "currentColor" }, h("rect", { x: 6, y: 6, width: 12, height: 12, rx: 2 }));
-}
-function RefreshIcon({ size = 16 }) {
-    return h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", strokeLinejoin: "round" }, h("path", { d: "M21 2v6h-6" }), h("path", { d: "M3 12a9 9 0 0 1 15-6.7L21 8" }), h("path", { d: "M3 22v-6h6" }), h("path", { d: "M21 12a9 9 0 0 1-15 6.7L3 16" }));
-}
-function HeartIcon({ size = 16, filled = false }) {
-    return filled
-        ? h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "currentColor" }, h("path", { d: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" }))
-        : h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 }, h("path", { d: "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" }));
-}
-function ThumbDownIcon({ size = 16 }) {
-    return h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, h("path", { d: "M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" }));
-}
-function LockIcon({ size = 14, locked = false }) {
-    return locked
-        ? h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "currentColor" }, h("rect", { x: 3, y: 11, width: 18, height: 11, rx: 2 }), h("path", { d: "M7 11V7a5 5 0 0 1 10 0v4", fill: "none", stroke: "currentColor", strokeWidth: 2 }))
-        : h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, h("rect", { x: 3, y: 11, width: 18, height: 11, rx: 2 }), h("path", { d: "M7 11V7a5 5 0 0 1 10 0v4" }));
-}
-function HistoryIcon({ size = 16 }) {
-    return h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, h("circle", { cx: 12, cy: 12, r: 10 }), h("polyline", { points: "12 6 12 12 16 14" }));
-}
-function StatsIcon({ size = 16 }) {
-    return h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, h("rect", { x: 3, y: 12, width: 4, height: 9, rx: 1 }), h("rect", { x: 10, y: 7, width: 4, height: 14, rx: 1 }), h("rect", { x: 17, y: 3, width: 4, height: 18, rx: 1 }));
-}
-function MoodIcon({ size = 16 }) {
-    return h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, h("circle", { cx: 12, cy: 12, r: 10 }), h("path", { d: "M8 14s1.5 2 4 2 4-2 4-2" }), h("line", { x1: 9, y1: 9, x2: 9.01, y2: 9 }), h("line", { x1: 15, y1: 9, x2: 15.01, y2: 9 }));
-}
-function MixIcon({ size = 16 }) {
-    return h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", strokeLinejoin: "round" }, h("polyline", { points: "16 3 21 3 21 8" }), h("line", { x1: 4, y1: 20, x2: 21, y2: 3 }), h("polyline", { points: "21 16 21 21 16 21" }), h("line", { x1: 15, y1: 15, x2: 21, y2: 21 }), h("line", { x1: 4, y1: 4, x2: 9, y2: 9 }));
-}
-// ========== EQUALIZER VISUALIZER ==========
-function AsciiWave({ active, mini }) {
+  }
+
+  // src/ui/icons.tsx
+  var h = (...args) => Spicetify.React.createElement(...args);
+  function WaveIcon({ size }) {
+    return h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 16 16", fill: "currentColor", className: "mw-wave-icon" },
+      h("rect", { className: "mw-wbar mw-wbar-1", x: 1, y: 6, width: 2, height: 4, rx: 1 }),
+      h("rect", { className: "mw-wbar mw-wbar-2", x: 5, y: 3, width: 2, height: 10, rx: 1 }),
+      h("rect", { className: "mw-wbar mw-wbar-3", x: 9, y: 5, width: 2, height: 6, rx: 1 }),
+      h("rect", { className: "mw-wbar mw-wbar-4", x: 13, y: 4, width: 2, height: 8, rx: 1 })
+    );
+  }
+  function PlayIcon({ size = 20 }) {
+    return h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "currentColor" },
+      h("path", { d: "M8 5v14l11-7z" })
+    );
+  }
+  function StopIcon({ size = 16 }) {
+    return h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "currentColor" },
+      h("rect", { x: 6, y: 6, width: 12, height: 12, rx: 2 })
+    );
+  }
+  function HeartIcon({ size = 16, filled = false }) {
+    return filled ? h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "currentColor" },
+      h("path", { d: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" })
+    ) : h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 },
+      h("path", { d: "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" })
+    );
+  }
+  function ThumbDownIcon({ size = 16 }) {
+    return h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" },
+      h("path", { d: "M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" })
+    );
+  }
+  function LockIcon({ size = 14, locked = false }) {
+    return locked ? h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "currentColor" },
+      h("rect", { x: 3, y: 11, width: 18, height: 11, rx: 2 }),
+      h("path", { d: "M7 11V7a5 5 0 0 1 10 0v4", fill: "none", stroke: "currentColor", strokeWidth: 2 })
+    ) : h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" },
+      h("rect", { x: 3, y: 11, width: 18, height: 11, rx: 2 }),
+      h("path", { d: "M7 11V7a5 5 0 0 1 10 0v4" })
+    );
+  }
+  function HistoryIcon({ size = 16 }) {
+    return h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" },
+      h("circle", { cx: 12, cy: 12, r: 10 }),
+      h("polyline", { points: "12 6 12 12 16 14" })
+    );
+  }
+  function StatsIcon({ size = 16 }) {
+    return h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" },
+      h("rect", { x: 3, y: 12, width: 4, height: 9, rx: 1 }),
+      h("rect", { x: 10, y: 7, width: 4, height: 14, rx: 1 }),
+      h("rect", { x: 17, y: 3, width: 4, height: 18, rx: 1 })
+    );
+  }
+  function MoodIcon({ size = 16 }) {
+    return h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" },
+      h("circle", { cx: 12, cy: 12, r: 10 }),
+      h("path", { d: "M8 14s1.5 2 4 2 4-2 4-2" }),
+      h("line", { x1: 9, y1: 9, x2: 9.01, y2: 9 }),
+      h("line", { x1: 15, y1: 9, x2: 15.01, y2: 9 })
+    );
+  }
+  function MixIcon({ size = 16 }) {
+    return h(
+      "svg",
+      { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", strokeLinejoin: "round" },
+      h("polyline", { points: "16 3 21 3 21 8" }),
+      h("line", { x1: 4, y1: 20, x2: 21, y2: 3 }),
+      h("polyline", { points: "21 16 21 21 16 21" }),
+      h("line", { x1: 15, y1: 15, x2: 21, y2: 21 }),
+      h("line", { x1: 4, y1: 4, x2: 9, y2: 9 })
+    );
+  }
+
+  // src/ui/visualizers.tsx
+  var React2 = Spicetify.React;
+  var h2 = (...args) => React2.createElement(...args);
+  var newMixCounter = 0;
+  var newMixListeners = /* @__PURE__ */ new Set();
+  function triggerNewMix() {
+    newMixCounter++;
+    newMixListeners.forEach((cb) => cb());
+  }
+  function useNewMixSignal() {
+    const [count, setCount] = React2.useState(newMixCounter);
+    React2.useEffect(() => {
+      const cb = () => setCount(newMixCounter);
+      newMixListeners.add(cb);
+      return () => {
+        newMixListeners.delete(cb);
+      };
+    }, []);
+    return count;
+  }
+  function AsciiWave({ active, mini }) {
     const cols = mini ? EQ_COLS_MINI : EQ_COLS;
     const rows = mini ? EQ_ROWS_MINI : EQ_ROWS;
-    // Idle bar heights (bell curve — center taller)
-    const idle = React.useMemo(() => Array.from({ length: cols }, (_, i) => {
-        const c = (cols - 1) / 2;
-        return (1 - Math.abs(i - c) / c * 0.6) * rows * 0.25;
+    const idle = React2.useMemo(() => Array.from({ length: cols }, (_, i) => {
+      const c = (cols - 1) / 2;
+      return (1 - Math.abs(i - c) / c * 0.6) * rows * 0.25;
     }), [cols, rows]);
-    const [bars, setBars] = React.useState(idle);
-    React.useEffect(() => {
-        if (!active) {
-            setBars(idle);
-            return;
+    const [bars, setBars] = React2.useState(idle);
+    React2.useEffect(() => {
+      if (!active) {
+        setBars(idle);
+        return;
+      }
+      const cur = idle.map((v) => v);
+      const tgt = cur.map(() => Math.random() * rows);
+      let timer;
+      const tick = () => {
+        for (let i = 0; i < cols; i++) {
+          if (Math.random() < 0.15) {
+            const c = (cols - 1) / 2;
+            tgt[i] = Math.random() * rows * (1 - Math.abs(i - c) / c * 0.25);
+          }
+          cur[i] += (tgt[i] - cur[i]) * 0.28;
         }
-        const cur = idle.map(v => v);
-        const tgt = cur.map(() => Math.random() * rows);
-        let timer;
-        const tick = () => {
-            for (let i = 0; i < cols; i++) {
-                if (Math.random() < 0.15) {
-                    const c = (cols - 1) / 2;
-                    tgt[i] = Math.random() * rows * (1 - Math.abs(i - c) / c * 0.25);
-                }
-                cur[i] += (tgt[i] - cur[i]) * 0.28;
-            }
-            setBars([...cur]);
-            timer = setTimeout(tick, 80);
-        };
-        tick();
-        return () => clearTimeout(timer);
+        setBars([...cur]);
+        timer = setTimeout(tick, 80);
+      };
+      tick();
+      return () => clearTimeout(timer);
     }, [active, idle, cols, rows]);
-    return h("div", { className: `mw-eq${active ? " mw-eq-on" : ""}${mini ? " mw-eq-mini" : ""}` }, Array.from({ length: rows }, (_, r) => {
+    return h2(
+      "div",
+      { className: `mw-eq${active ? " mw-eq-on" : ""}${mini ? " mw-eq-mini" : ""}` },
+      Array.from({ length: rows }, (_, r) => {
         const rowBot = rows - 1 - r;
-        return h("div", { key: r, className: "mw-eq-row" }, Array.from({ length: cols }, (_, c) => {
+        return h2(
+          "div",
+          { key: r, className: "mw-eq-row" },
+          Array.from({ length: cols }, (_2, c) => {
             const bh = bars[c];
             let ch;
-            if (bh > rowBot + 0.75)
-                ch = "\u2588";
-            else if (bh > rowBot + 0.5)
-                ch = "\u2593";
-            else if (bh > rowBot + 0.25)
-                ch = "\u2592";
-            else if (bh > rowBot)
-                ch = "\u2591";
-            else
-                ch = " ";
-            return h("span", { key: c, className: ch !== " " ? "mw-eq-ch" : "mw-eq-sp" }, ch);
-        }));
-    }));
-}
-// ========== CONSOLE TYPING LABEL ==========
-function MixLabel({ isNewMix }) {
-    const [text, setText] = React.useState("");
-    const [phase, setPhase] = React.useState("typing");
-    const targetRef = React.useRef("/MIX...");
-    const triggerRef = React.useRef(0);
-    React.useEffect(() => {
-        if (isNewMix) {
-            targetRef.current = "/NEW MIX...";
-            setText("");
-            setPhase("typing");
-            triggerRef.current++;
-        }
+            if (bh > rowBot + 0.75) ch = "\u2588";
+            else if (bh > rowBot + 0.5) ch = "\u2593";
+            else if (bh > rowBot + 0.25) ch = "\u2592";
+            else if (bh > rowBot) ch = "\u2591";
+            else ch = " ";
+            return h2("span", { key: c, className: ch !== " " ? "mw-eq-ch" : "mw-eq-sp" }, ch);
+          })
+        );
+      })
+    );
+  }
+  function MixLabel({ isNewMix }) {
+    const [text, setText] = React2.useState("");
+    const [phase, setPhase] = React2.useState("typing");
+    const targetRef = React2.useRef("/MIX...");
+    const triggerRef = React2.useRef(0);
+    React2.useEffect(() => {
+      if (isNewMix) {
+        targetRef.current = "/NEW MIX...";
+        setText("");
+        setPhase("typing");
+        triggerRef.current++;
+      }
     }, [isNewMix]);
-    React.useEffect(() => {
-        let timer;
-        const target = targetRef.current;
-        if (phase === "typing") {
-            if (text.length < target.length) {
-                timer = setTimeout(() => setText(target.slice(0, text.length + 1)), 60 + Math.random() * 40);
-            }
-            else {
-                timer = setTimeout(() => setPhase("hold"), 1800);
-            }
+    React2.useEffect(() => {
+      let timer;
+      const target = targetRef.current;
+      if (phase === "typing") {
+        if (text.length < target.length) {
+          timer = setTimeout(() => setText(target.slice(0, text.length + 1)), 60 + Math.random() * 40);
+        } else {
+          timer = setTimeout(() => setPhase("hold"), 1800);
         }
-        else if (phase === "hold") {
-            timer = setTimeout(() => setPhase("erasing"), 200);
+      } else if (phase === "hold") {
+        timer = setTimeout(() => setPhase("erasing"), 200);
+      } else if (phase === "erasing") {
+        if (text.length > 0) {
+          timer = setTimeout(() => setText(text.slice(0, -1)), 30);
+        } else {
+          targetRef.current = "/MIX...";
+          timer = setTimeout(() => setPhase("typing"), 400);
         }
-        else if (phase === "erasing") {
-            if (text.length > 0) {
-                timer = setTimeout(() => setText(text.slice(0, -1)), 30);
-            }
-            else {
-                targetRef.current = "/MIX...";
-                timer = setTimeout(() => setPhase("typing"), 400);
-            }
-        }
-        return () => clearTimeout(timer);
+      }
+      return () => clearTimeout(timer);
     }, [text, phase]);
-    return h("span", { className: "mw-ascii-label" }, h("span", null, text), h("span", { className: "mw-cursor" }, "\u2588"));
-}
-function PanelMixLabel() {
+    return h2(
+      "span",
+      { className: "mw-ascii-label" },
+      h2("span", null, text),
+      h2("span", { className: "mw-cursor" }, "\u2588")
+    );
+  }
+  function PanelMixLabel() {
     const sig = useNewMixSignal();
-    const [isNew, setIsNew] = React.useState(false);
-    const prevRef = React.useRef(sig);
-    React.useEffect(() => {
-        if (sig !== prevRef.current) {
-            setIsNew(true);
-            prevRef.current = sig;
-        }
-        else {
-            setIsNew(false);
-        }
+    const [isNew, setIsNew] = React2.useState(false);
+    const prevRef = React2.useRef(sig);
+    React2.useEffect(() => {
+      if (sig !== prevRef.current) {
+        setIsNew(true);
+        prevRef.current = sig;
+      } else {
+        setIsNew(false);
+      }
     }, [sig]);
-    return h(MixLabel, { isNewMix: isNew });
-}
-// ========== SEA WAVES BACKGROUND ==========
-const SEA_ROWS = [
-    { chars: "\u00B7   ~   \u00B7  ~    \u00B7   ~   \u00B7  ~    ", speed: 28, op: 0.12 },
+    return h2(MixLabel, { isNewMix: isNew });
+  }
+  var SEA_ROWS = [
+    { chars: "\xB7   ~   \xB7  ~    \xB7   ~   \xB7  ~    ", speed: 28, op: 0.12 },
     { chars: " ~ \u2591\u2591 ~  \u2591  ~ \u2591\u2591 ~  \u2591  ", speed: 20, op: 0.2 },
     { chars: "\u2591\u2592\u2593\u2592\u2591  \u2591\u2592\u2593\u2592\u2591   \u2591\u2592\u2593\u2592\u2591  \u2591\u2592\u2593\u2592\u2591   ", speed: 15, op: 0.3 },
     { chars: "\u2592\u2593\u2588\u2588\u2593\u2592\u2591\u2592\u2593\u2588\u2588\u2593\u2592\u2591\u2592\u2593\u2588\u2588\u2593\u2592\u2591\u2592\u2593\u2588\u2588\u2593\u2592\u2591", speed: 11, op: 0.4 },
-    { chars: "\u2593\u2588\u2588\u2588\u2588\u2593\u2592\u2593\u2588\u2588\u2588\u2588\u2593\u2592\u2593\u2588\u2588\u2588\u2588\u2593\u2592\u2593\u2588\u2588\u2588\u2588\u2593\u2592", speed: 8, op: 0.5 },
-];
-function SeaWaves() {
-    return h("div", { className: "mw-sea" }, SEA_ROWS.map((row, i) => h("div", {
+    { chars: "\u2593\u2588\u2588\u2588\u2588\u2593\u2592\u2593\u2588\u2588\u2588\u2588\u2593\u2592\u2593\u2588\u2588\u2588\u2588\u2593\u2592\u2593\u2588\u2588\u2588\u2588\u2593\u2592", speed: 8, op: 0.5 }
+  ];
+  function SeaWaves() {
+    return h2(
+      "div",
+      { className: "mw-sea" },
+      SEA_ROWS.map((row, i) => h2("div", {
         key: i,
         className: "mw-sea-row",
-        style: { opacity: row.op, animationDuration: `${row.speed}s` },
-    }, row.chars.repeat(6))));
-}
-// ========== HOME PAGE BANNER ==========
-function HomeBanner() {
-    const state = useEngineState();
-    const handleMood = (moodId) => {
-        if (state.activeMood === moodId) {
-            engine.stop();
-            return;
-        }
-        if (state.isActive)
-            engine.stop();
-        setTimeout(() => engine.start(moodId), 100);
-    };
-    return h("div", { className: "mw-home" }, h(SeaWaves), h("div", { className: "mw-home-glow" }), h("div", { className: "mw-home-inner" }, 
-    // Brand + label
-    h("div", { className: "mw-home-top-row" }, h("div", { className: "mw-home-brand" }, h(WaveIcon, { size: 16 }), h("span", null, "MIX LINE")), h("div", { className: "mw-home-tag" }, h(PanelMixLabel))), 
-    // Now playing or description
-    state.isActive
-        ? h("div", { className: "mw-home-np" }, state.currentImageUrl && h("img", { className: "mw-home-np-art", src: state.currentImageUrl, alt: "" }), h("div", { className: "mw-home-np-text" }, h("div", { className: "mw-home-np-name" }, state.currentTrackName), h("div", { className: "mw-home-np-artist" }, state.currentArtistName)))
-        : h("div", { className: "mw-home-desc" }, "Endless mix from your taste"), 
-    // Buttons
-    h("div", { className: "mw-home-btns" }, state.isActive
-        ? h(React.Fragment, null, h("button", { className: "mw-home-btn mw-home-btn-stop", onClick: () => engine.stop() }, h(StopIcon, { size: 12 }), "Stop"), h("button", { className: "mw-home-btn mw-home-btn-mix", onClick: () => { triggerNewMix(); engine.reseed(); } }, h(MixIcon, { size: 12 }), "New mix"), h("div", { className: "mw-home-live" }, h("span", { className: "mw-home-dot" }), `${state.playedCount} tracks`))
-        : h(React.Fragment, null, h("button", { className: "mw-home-btn mw-home-btn-play", onClick: () => engine.start() }, h(PlayIcon, { size: 14 }), "Start"), h("button", { className: "mw-home-btn mw-home-btn-fav", onClick: () => engine.startFavorites() }, h(HeartIcon, { size: 12, filled: true }), "Favorites"))), 
-    // Mood chips
-    h("div", { className: "mw-home-moods" }, state.topLikedArtist && h("button", {
-        key: "artist",
-        className: "mw-home-mood mw-home-mood-artist",
-        onClick: () => {
-            if (state.isActive)
-                engine.stop();
-            setTimeout(() => engine.startFromArtistName(state.topLikedArtist), 100);
-        },
-    }, `\u2605 ${state.topLikedArtist}`), MOODS.slice(0, 4).map(mood => h("button", {
-        key: mood.id,
-        className: `mw-home-mood${state.activeMood === mood.id ? " mw-home-mood-on" : ""}`,
-        onClick: () => handleMood(mood.id),
-    }, mood.label)))));
-}
-// ========== BOTTOM BAR WIDGET ==========
-function BottomBarWidget() {
-    const state = useEngineState();
-    const [panelOpen, setPanelOpen] = React.useState(false);
-    const [tab, setTab] = React.useState("main");
-    const panelRef = React.useRef(null);
-    React.useEffect(() => {
-        const handler = (e) => {
-            if (panelRef.current && !panelRef.current.contains(e.target)) {
-                setPanelOpen(false);
-            }
-        };
-        if (panelOpen)
-            document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-    }, [panelOpen]);
-    React.useEffect(() => {
-        if (panelOpen)
-            setTab("main");
-    }, [panelOpen]);
-    return h("div", { className: "mw-bottombar", ref: panelRef }, panelOpen && h("div", { className: "mw-panel" }, h("div", { className: "mw-panel-inner" }, 
-    // Header with ASCII glow
-    h("div", { className: "mw-header" }, h("div", { className: "mw-header-left" }, h("div", { className: "mw-logo" }, h(WaveIcon, { size: 14 })), h("span", { className: "mw-header-title" }, "MIX LINE")), h("div", { className: "mw-header-tabs" }, h("button", {
-        className: `mw-htab${tab === "main" ? " mw-htab-on" : ""}`,
-        onClick: () => setTab("main"),
-    }, h(MoodIcon, { size: 15 })), h("button", {
-        className: `mw-htab${tab === "history" ? " mw-htab-on" : ""}`,
-        onClick: () => setTab("history"),
-    }, h(HistoryIcon, { size: 15 })), h("button", {
-        className: `mw-htab${tab === "stats" ? " mw-htab-on" : ""}`,
-        onClick: () => setTab("stats"),
-    }, h(StatsIcon, { size: 15 })))), 
-    // ASCII Equalizer Banner + Now Playing (main tab only when active)
-    tab === "main" && state.isActive && h("div", { className: "mw-ascii-banner" }, h(AsciiWave, { active: true }), h("div", { className: "mw-ascii-overlay" }, h(PanelMixLabel))), tab === "main" && state.isActive && h(NowPlayingCard, { state }), 
-    // Tab content
-    tab === "main" && h(MainTab, { state }), tab === "history" && h(HistoryTab, { history: state.history }), tab === "stats" && h(StatsTab, { state }), 
-    // Bottom actions
-    state.isActive && h("div", { className: "mw-actions" }, h("button", { className: "mw-act mw-act-stop", onClick: () => engine.stop() }, h(StopIcon, { size: 14 }), "Stop"), h("button", { className: "mw-act mw-act-reseed", onClick: () => { triggerNewMix(); engine.reseed(); } }, h(MixIcon, { size: 14 }), "New mix")))), 
-    // Trigger button
-    h("button", {
-        className: `mw-trigger${state.isActive ? " mw-trigger-on" : ""}`,
-        onClick: () => setPanelOpen(!panelOpen),
-    }, h("div", { className: "mw-trigger-icon" }, h(WaveIcon, { size: 14 }))));
-}
-// --- Now Playing Card ---
-function NowPlayingCard({ state }) {
-    return h("div", { className: "mw-np" }, h("div", { className: "mw-np-top" }, h("div", { className: "mw-np-art-wrap" }, state.currentImageUrl && h("img", { className: "mw-np-art-glow", src: state.currentImageUrl, alt: "" }), state.currentImageUrl
-        ? h("img", { className: "mw-np-art", src: state.currentImageUrl, alt: "" })
-        : h("div", { className: "mw-np-art mw-np-ph" })), h("div", { className: "mw-np-info" }, h("div", { className: "mw-np-name" }, state.currentTrackName), h("div", { className: "mw-np-artist" }, state.currentArtistName))), h("div", { className: "mw-np-controls" }, h("button", {
-        className: "mw-np-btn mw-np-like",
-        onClick: () => engine.likeCurrentTrack(),
-        title: "Like",
-    }, h(HeartIcon, { size: 14 })), h("button", {
-        className: "mw-np-btn mw-np-dislike",
-        onClick: () => engine.dislikeCurrentTrack(),
-        title: "Dislike & skip",
-    }, h(ThumbDownIcon, { size: 14 })), h("button", {
-        className: `mw-np-btn mw-np-lock${state.lockedArtist ? " mw-np-locked" : ""}`,
-        onClick: () => engine.toggleLockArtist(),
-        title: state.lockedArtist ? `Unlock ${state.lockedArtist}` : "Lock to this artist",
-    }, h(LockIcon, { size: 14, locked: !!state.lockedArtist }), state.lockedArtist ? state.lockedArtist : "Lock artist"), h("button", {
-        className: "mw-np-btn mw-np-mixfrom",
-        onClick: () => { triggerNewMix(); engine.reseedFromTrack(); },
-        title: "Mix from this track",
-    }, h(MixIcon, { size: 14 }), "Mix from track")));
-}
-// --- Main Tab ---
-function MainTab({ state }) {
+        style: { opacity: row.op, animationDuration: `${row.speed}s` }
+      }, row.chars.repeat(6)))
+    );
+  }
+
+  // src/ui/panel.tsx
+  var React3 = Spicetify.React;
+  var h3 = (...args) => React3.createElement(...args);
+  var engine2;
+  function setEngine(e) {
+    engine2 = e;
+  }
+  function NowPlayingCard({ state }) {
+    return h3(
+      "div",
+      { className: "mw-np" },
+      h3(
+        "div",
+        { className: "mw-np-top" },
+        h3(
+          "div",
+          { className: "mw-np-art-wrap" },
+          state.currentImageUrl && h3("img", { className: "mw-np-art-glow", src: state.currentImageUrl, alt: "" }),
+          state.currentImageUrl ? h3("img", { className: "mw-np-art", src: state.currentImageUrl, alt: "" }) : h3("div", { className: "mw-np-art mw-np-ph" })
+        ),
+        h3(
+          "div",
+          { className: "mw-np-info" },
+          h3("div", { className: "mw-np-name" }, state.currentTrackName),
+          h3("div", { className: "mw-np-artist" }, state.currentArtistName)
+        )
+      ),
+      h3(
+        "div",
+        { className: "mw-np-controls" },
+        h3("button", {
+          className: "mw-np-btn mw-np-like",
+          onClick: () => engine2.likeCurrentTrack(),
+          title: "Like"
+        }, h3(HeartIcon, { size: 14 })),
+        h3("button", {
+          className: "mw-np-btn mw-np-dislike",
+          onClick: () => engine2.dislikeCurrentTrack(),
+          title: "Dislike & skip"
+        }, h3(ThumbDownIcon, { size: 14 })),
+        h3(
+          "button",
+          {
+            className: `mw-np-btn mw-np-lock${state.lockedArtist ? " mw-np-locked" : ""}`,
+            onClick: () => engine2.toggleLockArtist(),
+            title: state.lockedArtist ? `Unlock ${state.lockedArtist}` : "Lock to this artist"
+          },
+          h3(LockIcon, { size: 14, locked: !!state.lockedArtist }),
+          state.lockedArtist ? state.lockedArtist : "Lock artist"
+        ),
+        h3("button", {
+          className: "mw-np-btn mw-np-mixfrom",
+          onClick: () => {
+            triggerNewMix();
+            engine2.reseedFromTrack();
+          },
+          title: "Mix from this track"
+        }, h3(MixIcon, { size: 14 }), "Mix from track")
+      )
+    );
+  }
+  function MainTab({ state }) {
     if (state.isActive) {
-        return h(React.Fragment, null, h(MoodChips, { activeMood: state.activeMood, isActive: true, topLikedArtist: state.topLikedArtist, isFavoritesMode: state.isFavoritesMode, pinnedMood: state.pinnedMood }), h(InlineStats, { state }));
+      return h3(
+        React3.Fragment,
+        null,
+        h3(MoodChips, { activeMood: state.activeMood, isActive: true, topLikedArtist: state.topLikedArtist, isFavoritesMode: state.isFavoritesMode, pinnedMood: state.pinnedMood }),
+        h3(InlineStats, { state })
+      );
     }
-    return h(React.Fragment, null, 
-    // ASCII wave hero when not active
-    h("div", { className: "mw-hero" }, h(AsciiWave, { active: false }), h("div", { className: "mw-hero-text" }, "Your infinite mix")), h("div", { className: "mw-start-section" }, h("button", {
-        className: `mw-start-btn${state.isLoading ? " mw-loading" : ""}`,
-        onClick: () => engine.start(),
-    }, h(PlayIcon, { size: 18 }), "Start"), h("button", {
-        className: `mw-start-btn mw-start-fav${state.isLoading ? " mw-loading" : ""}`,
-        onClick: () => engine.startFavorites(),
-    }, h(HeartIcon, { size: 16, filled: true }), "My Favorites")), h(MoodChips, { activeMood: null, isActive: false, topLikedArtist: state.topLikedArtist, isFavoritesMode: false, pinnedMood: state.pinnedMood }));
-}
-// --- Mood Chips ---
-function MoodChips({ activeMood, isActive, topLikedArtist, isFavoritesMode, pinnedMood }) {
-    const [expanded, setExpanded] = React.useState(false);
+    return h3(
+      React3.Fragment,
+      null,
+      // ASCII wave hero when not active
+      h3(
+        "div",
+        { className: "mw-hero" },
+        h3(AsciiWave, { active: false }),
+        h3("div", { className: "mw-hero-text" }, "Your infinite mix")
+      ),
+      h3(
+        "div",
+        { className: "mw-start-section" },
+        h3("button", {
+          className: `mw-start-btn${state.isLoading ? " mw-loading" : ""}`,
+          onClick: () => engine2.start()
+        }, h3(PlayIcon, { size: 18 }), "Start"),
+        h3("button", {
+          className: `mw-start-btn mw-start-fav${state.isLoading ? " mw-loading" : ""}`,
+          onClick: () => engine2.startFavorites()
+        }, h3(HeartIcon, { size: 16, filled: true }), "My Favorites")
+      ),
+      h3(MoodChips, { activeMood: null, isActive: false, topLikedArtist: state.topLikedArtist, isFavoritesMode: false, pinnedMood: state.pinnedMood })
+    );
+  }
+  function MoodChips({ activeMood, isActive, topLikedArtist, isFavoritesMode, pinnedMood }) {
+    const [expanded, setExpanded] = React3.useState(false);
     const visible = expanded ? MOODS : MOODS.slice(0, 4);
-    return h("div", { className: "mw-moods" }, h("div", { className: "mw-moods-header" }, h("div", { className: "mw-moods-label" }, "MOOD"), expanded && h("button", {
-        className: "mw-moods-collapse",
-        onClick: () => setExpanded(false),
-    }, "\u2715")), h("div", { className: `mw-moods-row${expanded ? " mw-moods-expanded" : ""}` }, 
-    // Favorites chip
-    h("button", {
-        key: "favorites",
-        className: `mw-mood mw-mood-fav${isFavoritesMode ? " mw-mood-on" : ""}${pinnedMood === "__favorites__" ? " mw-mood-pinned" : ""}`,
-        onClick: () => {
-            if (isFavoritesMode && isActive) {
-                engine.stop();
+    return h3(
+      "div",
+      { className: "mw-moods" },
+      h3(
+        "div",
+        { className: "mw-moods-header" },
+        h3("div", { className: "mw-moods-label" }, "MOOD"),
+        expanded && h3("button", {
+          className: "mw-moods-collapse",
+          onClick: () => setExpanded(false)
+        }, "\u2715")
+      ),
+      h3(
+        "div",
+        { className: `mw-moods-row${expanded ? " mw-moods-expanded" : ""}` },
+        // Favorites chip
+        h3(
+          "button",
+          {
+            key: "favorites",
+            className: `mw-mood mw-mood-fav${isFavoritesMode ? " mw-mood-on" : ""}${pinnedMood === "__favorites__" ? " mw-mood-pinned" : ""}`,
+            onClick: () => {
+              if (isFavoritesMode && isActive) {
+                engine2.stop();
                 return;
+              }
+              if (isActive) engine2.stop();
+              setTimeout(() => engine2.startFavorites(), 100);
+            },
+            onContextMenu: (e) => {
+              e.preventDefault();
+              engine2.togglePinFavorites();
             }
-            if (isActive)
-                engine.stop();
-            setTimeout(() => engine.startFavorites(), 100);
-        },
-        onContextMenu: (e) => { e.preventDefault(); engine.togglePinFavorites(); },
-    }, h(HeartIcon, { size: 11, filled: true }), pinnedMood === "__favorites__" ? " Favorites \u{1F4CC}" : " Favorites"), 
-    // Top artist chip
-    topLikedArtist && h("button", {
-        key: "top-artist",
-        className: "mw-mood mw-mood-artist",
-        onClick: () => {
-            if (isActive)
-                engine.stop();
-            setTimeout(() => engine.startFromArtistName(topLikedArtist), 100);
-        },
-    }, `\u2605 ${topLikedArtist}`), 
-    // Mood chips
-    visible.map(mood => h("button", {
-        key: mood.id,
-        className: `mw-mood${activeMood === mood.id ? " mw-mood-on" : ""}${pinnedMood === mood.id ? " mw-mood-pinned" : ""}`,
-        onClick: () => {
+          },
+          h3(HeartIcon, { size: 11, filled: true }),
+          pinnedMood === "__favorites__" ? " Favorites \u{1F4CC}" : " Favorites"
+        ),
+        // Top artist chip
+        topLikedArtist && h3("button", {
+          key: "top-artist",
+          className: "mw-mood mw-mood-artist",
+          onClick: () => {
+            if (isActive) engine2.stop();
+            setTimeout(() => engine2.startFromArtistName(topLikedArtist), 100);
+          }
+        }, `\u2605 ${topLikedArtist}`),
+        // Mood chips
+        visible.map((mood) => h3("button", {
+          key: mood.id,
+          className: `mw-mood${activeMood === mood.id ? " mw-mood-on" : ""}${pinnedMood === mood.id ? " mw-mood-pinned" : ""}`,
+          onClick: () => {
             if (activeMood === mood.id) {
-                engine.stop();
-                return;
+              engine2.stop();
+              return;
             }
-            if (isActive)
-                engine.stop();
-            setTimeout(() => engine.start(mood.id), 100);
-        },
-        onContextMenu: (e) => { e.preventDefault(); engine.togglePinMood(mood.id); },
-    }, pinnedMood === mood.id ? `${mood.label} \u{1F4CC}` : mood.label)), !expanded && h("button", {
-        key: "more",
-        className: "mw-mood mw-mood-more",
-        onClick: () => setExpanded(true),
-    }, `+${MOODS.length - 4}`)));
-}
-// --- Inline Stats ---
-function InlineStats({ state }) {
+            if (isActive) engine2.stop();
+            setTimeout(() => engine2.start(mood.id), 100);
+          },
+          onContextMenu: (e) => {
+            e.preventDefault();
+            engine2.togglePinMood(mood.id);
+          }
+        }, pinnedMood === mood.id ? `${mood.label} \u{1F4CC}` : mood.label)),
+        !expanded && h3("button", {
+          key: "more",
+          className: "mw-mood mw-mood-more",
+          onClick: () => setExpanded(true)
+        }, `+${MOODS.length - 4}`)
+      )
+    );
+  }
+  function InlineStats({ state }) {
     useTimeTick(state.isActive);
     const mins = state.sessionMinutes;
     const timeStr = mins < 1 ? "<1m" : `${mins}m`;
-    return h("div", { className: "mw-istats" }, h("div", { className: "mw-istat" }, h("div", { className: "mw-istat-val" }, `${state.playedCount}`), h("div", { className: "mw-istat-lbl" }, "tracks")), h("div", { className: "mw-istat" }, h("div", { className: "mw-istat-val" }, timeStr), h("div", { className: "mw-istat-lbl" }, "listened")), h("div", { className: "mw-istat" }, h("div", { className: "mw-istat-val" }, `${state.uniqueArtistsCount}`), h("div", { className: "mw-istat-lbl" }, "artists")));
-}
-// --- History Tab ---
-function HistoryTab({ history }) {
+    return h3(
+      "div",
+      { className: "mw-istats" },
+      h3(
+        "div",
+        { className: "mw-istat" },
+        h3("div", { className: "mw-istat-val" }, `${state.playedCount}`),
+        h3("div", { className: "mw-istat-lbl" }, "tracks")
+      ),
+      h3(
+        "div",
+        { className: "mw-istat" },
+        h3("div", { className: "mw-istat-val" }, timeStr),
+        h3("div", { className: "mw-istat-lbl" }, "listened")
+      ),
+      h3(
+        "div",
+        { className: "mw-istat" },
+        h3("div", { className: "mw-istat-val" }, `${state.uniqueArtistsCount}`),
+        h3("div", { className: "mw-istat-lbl" }, "artists")
+      )
+    );
+  }
+  function HistoryTab({ history }) {
     if (history.length === 0) {
-        return h("div", { className: "mw-empty" }, "No tracks played yet");
+      return h3("div", { className: "mw-empty" }, "No tracks played yet");
     }
-    return h("div", { className: "mw-hist" }, history.slice(0, 20).map((entry, i) => h("div", {
-        key: entry.uri + entry.timestamp,
-        className: "mw-hist-row",
-        style: { animationDelay: `${i * 30}ms` },
-    }, h("div", { className: "mw-hist-num" }, `${i + 1}`), entry.imageUrl
-        ? h("img", { className: "mw-hist-art", src: entry.imageUrl, alt: "", onClick: () => engine.playFromHistory(entry.uri) })
-        : h("div", { className: "mw-hist-art mw-hist-ph", onClick: () => engine.playFromHistory(entry.uri) }), h("div", { className: "mw-hist-info", onClick: () => engine.playFromHistory(entry.uri) }, h("div", { className: "mw-hist-name" }, entry.name), h("div", { className: "mw-hist-artist" }, entry.artist)), h(LikeButton, { uri: entry.uri }))));
-}
-// --- Like Button (history rows) ---
-function LikeButton({ uri }) {
-    const [liked, setLiked] = React.useState(false);
-    React.useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            try {
-                const res = await Spicetify.Platform.LibraryAPI.contains(uri);
-                if (!cancelled)
-                    setLiked(!!res);
-            }
-            catch {
-                // Some Spicetify versions use a different API shape
-                try {
-                    const res = await Spicetify.CosmosAsync.get(`https://api.spotify.com/v1/me/tracks/contains?ids=${uri.split(":").pop()}`);
-                    if (!cancelled && Array.isArray(res))
-                        setLiked(res[0]);
-                }
-                catch { }
-            }
-        })();
-        return () => { cancelled = true; };
+    return h3(
+      "div",
+      { className: "mw-hist" },
+      history.slice(0, 20).map((entry, i) => h3(
+        "div",
+        {
+          key: entry.uri + entry.timestamp,
+          className: "mw-hist-row",
+          style: { animationDelay: `${i * 30}ms` }
+        },
+        h3("div", { className: "mw-hist-num" }, `${i + 1}`),
+        entry.imageUrl ? h3("img", { className: "mw-hist-art", src: entry.imageUrl, alt: "", onClick: () => engine2.playFromHistory(entry.uri) }) : h3("div", { className: "mw-hist-art mw-hist-ph", onClick: () => engine2.playFromHistory(entry.uri) }),
+        h3(
+          "div",
+          { className: "mw-hist-info", onClick: () => engine2.playFromHistory(entry.uri) },
+          h3("div", { className: "mw-hist-name" }, entry.name),
+          h3("div", { className: "mw-hist-artist" }, entry.artist)
+        ),
+        h3(LikeButton, { uri: entry.uri })
+      ))
+    );
+  }
+  function LikeButton({ uri }) {
+    const [liked, setLiked] = React3.useState(false);
+    React3.useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const res = await Spicetify.Platform.LibraryAPI.contains(uri);
+          if (!cancelled) setLiked(!!res);
+        } catch {
+          try {
+            const res = await Spicetify.CosmosAsync.get(
+              `https://api.spotify.com/v1/me/tracks/contains?ids=${uri.split(":").pop()}`
+            );
+            if (!cancelled && Array.isArray(res)) setLiked(res[0]);
+          } catch {
+          }
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }, [uri]);
     const toggle = async (e) => {
-        e.stopPropagation();
-        try {
-            if (liked) {
-                await Spicetify.Platform.LibraryAPI.remove({ uris: [uri] });
-            }
-            else {
-                await Spicetify.Platform.LibraryAPI.add({ uris: [uri] });
-            }
-            setLiked(!liked);
+      e.stopPropagation();
+      try {
+        if (liked) {
+          await Spicetify.Platform.LibraryAPI.remove({ uris: [uri] });
+        } else {
+          await Spicetify.Platform.LibraryAPI.add({ uris: [uri] });
         }
-        catch { }
+        setLiked(!liked);
+      } catch {
+      }
     };
-    return h("button", {
-        className: `mw-like${liked ? " mw-liked" : ""}`,
-        onClick: toggle,
-    }, h(HeartIcon, { size: 14, filled: liked }));
-}
-// --- Stats Tab ---
-function StatsTab({ state }) {
+    return h3("button", {
+      className: `mw-like${liked ? " mw-liked" : ""}`,
+      onClick: toggle
+    }, h3(HeartIcon, { size: 14, filled: liked }));
+  }
+  function StatsTab({ state }) {
     useTimeTick(state.isActive);
     if (!state.isActive && state.history.length === 0) {
-        return h("div", { className: "mw-empty" }, "Start a mix to see stats");
+      return h3("div", { className: "mw-empty" }, "Start a mix to see stats");
     }
     const mins = state.sessionMinutes;
     const timeStr = mins < 1 ? "<1m" : `${mins}m`;
-    return h("div", { className: "mw-stats-tab" }, h("div", { className: "mw-stats-grid" }, h("div", { className: "mw-stat-card" }, h("div", { className: "mw-stat-val" }, `${state.playedCount}`), h("div", { className: "mw-stat-lbl" }, "tracks")), h("div", { className: "mw-stat-card" }, h("div", { className: "mw-stat-val" }, timeStr), h("div", { className: "mw-stat-lbl" }, "listened")), h("div", { className: "mw-stat-card" }, h("div", { className: "mw-stat-val" }, `${state.uniqueArtistsCount}`), h("div", { className: "mw-stat-lbl" }, "artists"))), state.topArtists.length > 0 && h("div", { className: "mw-top-artists" }, h("div", { className: "mw-top-label" }, "TOP ARTISTS"), state.topArtists.map((a, i) => h("div", { key: a.name, className: "mw-top-row", style: { animationDelay: `${i * 40}ms` } }, h("div", { className: "mw-top-rank" }, `${i + 1}`), h("div", { className: "mw-top-name" }, a.name), h("div", { className: "mw-top-count" }, `${a.count} plays`)))), state.seedTrackName && h("div", { className: "mw-stat-seed" }, h("span", { className: "mw-stat-seed-lbl" }, state.activeMood ? "Mood" : state.isFavoritesMode ? "Mode" : "Seed"), h("span", null, state.seedTrackName)));
-}
-// ============================================================
-// Entry Point
-// ============================================================
-function cleanupPreviousInstance() {
-    // Stop engine if it was running
-    if (engine.getState().isActive) {
-        engine.stop();
-    }
-    // Remove old DOM elements
-    const oldBb = document.getElementById("mywave-bb");
-    if (oldBb) {
-        ReactDOM.unmountComponentAtNode(oldBb);
-        oldBb.remove();
-    }
-    const oldHome = document.getElementById("mywave-home");
-    if (oldHome) {
-        ReactDOM.unmountComponentAtNode(oldHome);
-        oldHome.remove();
-    }
-    const oldStyles = document.getElementById("mywave-styles");
-    if (oldStyles)
-        oldStyles.remove();
-    // Disconnect previous observer
-    if (window.__mywaveObserver) {
-        window.__mywaveObserver.disconnect();
-        window.__mywaveObserver = null;
-    }
-    // Deregister previous context menu
-    if (window.__mywaveCtxMenu) {
-        try {
-            window.__mywaveCtxMenu.deregister();
-        }
-        catch { }
-        window.__mywaveCtxMenu = null;
-    }
-    console.log("[MyWave] Cleaned up previous instance");
-}
-async function main() {
-    while (!Spicetify?.React || !Spicetify?.ReactDOM) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    React = Spicetify.React;
-    ReactDOM = Spicetify.ReactDOM;
-    console.log("[MyWave] Initializing...");
-    cleanupPreviousInstance();
-    injectStyles();
-    registerContextMenu();
-    engine.loadTopLikedArtist();
-    injectHomeBanner();
-    const bbContainer = document.createElement("div");
-    bbContainer.id = "mywave-bb";
-    const repeatBtn = document.querySelector("[data-testid='control-button-repeat']") ||
-        document.querySelector("button[aria-label='Repeat']") ||
-        document.querySelector("button[aria-label*='repeat' i]");
-    let bbMounted = false;
-    if (repeatBtn?.parentElement) {
-        repeatBtn.parentElement.insertBefore(bbContainer, repeatBtn.nextSibling);
-        bbMounted = true;
-    }
-    if (!bbMounted) {
-        const ctrl = document.querySelector(".player-controls__buttons") ||
-            document.querySelector("[data-testid='player-controls']") ||
-            document.querySelector(".player-controls");
-        if (ctrl) {
-            ctrl.appendChild(bbContainer);
-            bbMounted = true;
-        }
-    }
-    if (!bbMounted) {
-        bbContainer.style.cssText = "position:fixed;bottom:80px;right:16px;z-index:9999";
-        document.body.appendChild(bbContainer);
-    }
-    ReactDOM.render(h(BottomBarWidget), bbContainer);
-}
-// --- Context Menu ---
-function registerContextMenu() {
-    try {
-        const CtxMenu = Spicetify.ContextMenu;
-        if (!CtxMenu) {
-            console.log("[MyWave] ContextMenu API not available");
-            return;
-        }
-        const menuItem = new CtxMenu.Item("Start Mix from this", (uris) => {
-            const uri = uris[0];
-            if (uri?.includes("playlist")) {
-                engine.startFromPlaylist(uri);
-            }
-        }, (uris) => {
-            return uris.length === 1 && uris[0]?.includes("playlist");
-        });
-        menuItem.register();
-        window.__mywaveCtxMenu = menuItem;
-        console.log("[MyWave] Context menu registered");
-    }
-    catch (e) {
-        console.log("[MyWave] Failed to register context menu:", e);
-    }
-}
-// --- Home Page Banner ---
-function injectHomeBanner() {
-    let mounted = false;
-    function tryInject() {
-        if (mounted && document.getElementById("mywave-home"))
-            return;
-        const old = document.getElementById("mywave-home");
-        if (old) {
-            old.remove();
-            mounted = false;
-        }
-        const homeContent = document.querySelector('[data-testid="home-page"]') ||
-            document.querySelector('.main-home-content');
-        if (!homeContent)
-            return;
-        const container = document.createElement("div");
-        container.id = "mywave-home";
-        // Find a valid direct child to insert before
-        const children = homeContent.children;
-        if (children.length > 0) {
-            try {
-                homeContent.insertBefore(container, children[0]);
-            }
-            catch {
-                // If insertBefore fails, try prepend or append
-                try {
-                    homeContent.prepend(container);
-                }
-                catch {
-                    homeContent.appendChild(container);
-                }
-            }
-        }
-        else {
-            homeContent.appendChild(container);
-        }
-        ReactDOM.render(h(HomeBanner), container);
-        mounted = true;
-        console.log("[MyWave] Home banner injected");
-    }
-    setTimeout(tryInject, 2000);
-    setTimeout(tryInject, 5000);
-    let debounceTimer = null;
-    const obs = new MutationObserver(() => {
-        if (debounceTimer)
-            clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(tryInject, 300);
-    });
-    const mainView = document.querySelector('.Root__main-view') || document.body;
-    obs.observe(mainView, { childList: true, subtree: true });
-    // Store reference for cleanup
-    window.__mywaveObserver = obs;
-}
-// ============================================================
-// Styles
-// ============================================================
-function injectStyles() {
-    if (document.getElementById("mywave-styles"))
+    return h3(
+      "div",
+      { className: "mw-stats-tab" },
+      h3(
+        "div",
+        { className: "mw-stats-grid" },
+        h3(
+          "div",
+          { className: "mw-stat-card" },
+          h3("div", { className: "mw-stat-val" }, `${state.playedCount}`),
+          h3("div", { className: "mw-stat-lbl" }, "tracks")
+        ),
+        h3(
+          "div",
+          { className: "mw-stat-card" },
+          h3("div", { className: "mw-stat-val" }, timeStr),
+          h3("div", { className: "mw-stat-lbl" }, "listened")
+        ),
+        h3(
+          "div",
+          { className: "mw-stat-card" },
+          h3("div", { className: "mw-stat-val" }, `${state.uniqueArtistsCount}`),
+          h3("div", { className: "mw-stat-lbl" }, "artists")
+        )
+      ),
+      state.topArtists.length > 0 && h3(
+        "div",
+        { className: "mw-top-artists" },
+        h3("div", { className: "mw-top-label" }, "TOP ARTISTS"),
+        state.topArtists.map((a, i) => h3(
+          "div",
+          { key: a.name, className: "mw-top-row", style: { animationDelay: `${i * 40}ms` } },
+          h3("div", { className: "mw-top-rank" }, `${i + 1}`),
+          h3("div", { className: "mw-top-name" }, a.name),
+          h3("div", { className: "mw-top-count" }, `${a.count} plays`)
+        ))
+      ),
+      state.seedTrackName && h3(
+        "div",
+        { className: "mw-stat-seed" },
+        h3(
+          "span",
+          { className: "mw-stat-seed-lbl" },
+          state.activeMood ? "Mood" : state.isFavoritesMode ? "Mode" : "Seed"
+        ),
+        h3("span", null, state.seedTrackName)
+      )
+    );
+  }
+
+  // src/ui/HomeBanner.tsx
+  var React4 = Spicetify.React;
+  var h4 = (...args) => React4.createElement(...args);
+  var engine3;
+  function setHomeBannerEngine(e) {
+    engine3 = e;
+  }
+  function HomeBanner() {
+    const state = useEngineState();
+    const handleMood = (moodId) => {
+      if (state.activeMood === moodId) {
+        engine3.stop();
         return;
+      }
+      if (state.isActive) engine3.stop();
+      setTimeout(() => engine3.start(moodId), 100);
+    };
+    return h4(
+      "div",
+      { className: "mw-home" },
+      h4(SeaWaves),
+      h4("div", { className: "mw-home-glow" }),
+      h4(
+        "div",
+        { className: "mw-home-inner" },
+        // Brand + label
+        h4(
+          "div",
+          { className: "mw-home-top-row" },
+          h4(
+            "div",
+            { className: "mw-home-brand" },
+            h4(WaveIcon, { size: 16 }),
+            h4("span", null, "MIX LINE")
+          ),
+          h4(
+            "div",
+            { className: "mw-home-tag" },
+            h4(PanelMixLabel)
+          )
+        ),
+        // Now playing or description
+        state.isActive ? h4(
+          "div",
+          { className: "mw-home-np" },
+          state.currentImageUrl && h4("img", { className: "mw-home-np-art", src: state.currentImageUrl, alt: "" }),
+          h4(
+            "div",
+            { className: "mw-home-np-text" },
+            h4("div", { className: "mw-home-np-name" }, state.currentTrackName),
+            h4("div", { className: "mw-home-np-artist" }, state.currentArtistName)
+          )
+        ) : h4("div", { className: "mw-home-desc" }, "Endless mix from your taste"),
+        // Buttons
+        h4(
+          "div",
+          { className: "mw-home-btns" },
+          state.isActive ? h4(
+            React4.Fragment,
+            null,
+            h4(
+              "button",
+              { className: "mw-home-btn mw-home-btn-stop", onClick: () => engine3.stop() },
+              h4(StopIcon, { size: 12 }),
+              "Stop"
+            ),
+            h4(
+              "button",
+              { className: "mw-home-btn mw-home-btn-mix", onClick: () => {
+                triggerNewMix();
+                engine3.reseed();
+              } },
+              h4(MixIcon, { size: 12 }),
+              "New mix"
+            ),
+            h4(
+              "div",
+              { className: "mw-home-live" },
+              h4("span", { className: "mw-home-dot" }),
+              `${state.playedCount} tracks`
+            )
+          ) : h4(
+            React4.Fragment,
+            null,
+            h4(
+              "button",
+              { className: "mw-home-btn mw-home-btn-play", onClick: () => engine3.start() },
+              h4(PlayIcon, { size: 14 }),
+              "Start"
+            ),
+            h4(
+              "button",
+              { className: "mw-home-btn mw-home-btn-fav", onClick: () => engine3.startFavorites() },
+              h4(HeartIcon, { size: 12, filled: true }),
+              "Favorites"
+            )
+          )
+        ),
+        // Mood chips
+        h4(
+          "div",
+          { className: "mw-home-moods" },
+          state.topLikedArtist && h4("button", {
+            key: "artist",
+            className: "mw-home-mood mw-home-mood-artist",
+            onClick: () => {
+              if (state.isActive) engine3.stop();
+              setTimeout(() => engine3.startFromArtistName(state.topLikedArtist), 100);
+            }
+          }, `\u2605 ${state.topLikedArtist}`),
+          MOODS.slice(0, 4).map((mood) => h4("button", {
+            key: mood.id,
+            className: `mw-home-mood${state.activeMood === mood.id ? " mw-home-mood-on" : ""}`,
+            onClick: () => handleMood(mood.id)
+          }, mood.label))
+        )
+      )
+    );
+  }
+
+  // src/ui/BottomBarWidget.tsx
+  var React5 = Spicetify.React;
+  var h5 = (...args) => React5.createElement(...args);
+  var engine4;
+  function setBottomBarEngine(e) {
+    engine4 = e;
+  }
+  function BottomBarWidget() {
+    const state = useEngineState();
+    const [panelOpen, setPanelOpen] = React5.useState(false);
+    const [tab, setTab] = React5.useState("main");
+    const panelRef = React5.useRef(null);
+    React5.useEffect(() => {
+      const handler = (e) => {
+        if (panelRef.current && !panelRef.current.contains(e.target)) {
+          setPanelOpen(false);
+        }
+      };
+      if (panelOpen) document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+    }, [panelOpen]);
+    React5.useEffect(() => {
+      if (panelOpen) setTab("main");
+    }, [panelOpen]);
+    return h5(
+      "div",
+      { className: "mw-bottombar", ref: panelRef },
+      panelOpen && h5(
+        "div",
+        { className: "mw-panel" },
+        h5(
+          "div",
+          { className: "mw-panel-inner" },
+          // Header with ASCII glow
+          h5(
+            "div",
+            { className: "mw-header" },
+            h5(
+              "div",
+              { className: "mw-header-left" },
+              h5("div", { className: "mw-logo" }, h5(WaveIcon, { size: 14 })),
+              h5("span", { className: "mw-header-title" }, "MIX LINE")
+            ),
+            h5(
+              "div",
+              { className: "mw-header-tabs" },
+              h5("button", {
+                className: `mw-htab${tab === "main" ? " mw-htab-on" : ""}`,
+                onClick: () => setTab("main")
+              }, h5(MoodIcon, { size: 15 })),
+              h5("button", {
+                className: `mw-htab${tab === "history" ? " mw-htab-on" : ""}`,
+                onClick: () => setTab("history")
+              }, h5(HistoryIcon, { size: 15 })),
+              h5("button", {
+                className: `mw-htab${tab === "stats" ? " mw-htab-on" : ""}`,
+                onClick: () => setTab("stats")
+              }, h5(StatsIcon, { size: 15 }))
+            )
+          ),
+          // ASCII Equalizer Banner + Now Playing (main tab only when active)
+          tab === "main" && state.isActive && h5(
+            "div",
+            { className: "mw-ascii-banner" },
+            h5(AsciiWave, { active: true }),
+            h5(
+              "div",
+              { className: "mw-ascii-overlay" },
+              h5(PanelMixLabel)
+            )
+          ),
+          tab === "main" && state.isActive && h5(NowPlayingCard, { state }),
+          // Tab content
+          tab === "main" && h5(MainTab, { state }),
+          tab === "history" && h5(HistoryTab, { history: state.history }),
+          tab === "stats" && h5(StatsTab, { state }),
+          // Bottom actions
+          state.isActive && h5(
+            "div",
+            { className: "mw-actions" },
+            h5(
+              "button",
+              { className: "mw-act mw-act-stop", onClick: () => engine4.stop() },
+              h5(StopIcon, { size: 14 }),
+              "Stop"
+            ),
+            h5(
+              "button",
+              { className: "mw-act mw-act-reseed", onClick: () => {
+                triggerNewMix();
+                engine4.reseed();
+              } },
+              h5(MixIcon, { size: 14 }),
+              "New mix"
+            )
+          )
+        )
+      ),
+      // Trigger button
+      h5(
+        "button",
+        {
+          className: `mw-trigger${state.isActive ? " mw-trigger-on" : ""}`,
+          onClick: () => setPanelOpen(!panelOpen)
+        },
+        h5("div", { className: "mw-trigger-icon" }, h5(WaveIcon, { size: 14 }))
+      )
+    );
+  }
+
+  // src/styles.ts
+  function injectStyles() {
+    if (document.getElementById("mywave-styles")) return;
     const s = document.createElement("style");
     s.id = "mywave-styles";
     s.textContent = `
@@ -1815,5 +1999,149 @@ function injectStyles() {
     }
   `;
     document.head.appendChild(s);
-}
-(async () => { await main(); })();
+  }
+
+  // src/app.tsx
+  var React6;
+  var ReactDOM;
+  var engine5 = new WaveEngine();
+  var h6 = (...args) => Spicetify.React.createElement(...args);
+  function cleanupPreviousInstance() {
+    if (engine5.getState().isActive) {
+      engine5.stop();
+    }
+    const oldBb = document.getElementById("mywave-bb");
+    if (oldBb) {
+      ReactDOM.unmountComponentAtNode(oldBb);
+      oldBb.remove();
+    }
+    const oldHome = document.getElementById("mywave-home");
+    if (oldHome) {
+      ReactDOM.unmountComponentAtNode(oldHome);
+      oldHome.remove();
+    }
+    const oldStyles = document.getElementById("mywave-styles");
+    if (oldStyles) oldStyles.remove();
+    if (window.__mywaveObserver) {
+      window.__mywaveObserver.disconnect();
+      window.__mywaveObserver = null;
+    }
+    if (window.__mywaveCtxMenu) {
+      try {
+        window.__mywaveCtxMenu.deregister();
+      } catch {
+      }
+      window.__mywaveCtxMenu = null;
+    }
+    console.log("[MyWave] Cleaned up previous instance");
+  }
+  async function main() {
+    while (!Spicetify?.React || !Spicetify?.ReactDOM) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1e3));
+    React6 = Spicetify.React;
+    ReactDOM = Spicetify.ReactDOM;
+    console.log("[MyWave] Initializing...");
+    setHooksEngine(engine5);
+    setEngine(engine5);
+    setHomeBannerEngine(engine5);
+    setBottomBarEngine(engine5);
+    cleanupPreviousInstance();
+    injectStyles();
+    registerContextMenu();
+    engine5.loadTopLikedArtist();
+    injectHomeBanner();
+    const bbContainer = document.createElement("div");
+    bbContainer.id = "mywave-bb";
+    const repeatBtn = document.querySelector("[data-testid='control-button-repeat']") || document.querySelector("button[aria-label='Repeat']") || document.querySelector("button[aria-label*='repeat' i]");
+    let bbMounted = false;
+    if (repeatBtn?.parentElement) {
+      repeatBtn.parentElement.insertBefore(bbContainer, repeatBtn.nextSibling);
+      bbMounted = true;
+    }
+    if (!bbMounted) {
+      const ctrl = document.querySelector(".player-controls__buttons") || document.querySelector("[data-testid='player-controls']") || document.querySelector(".player-controls");
+      if (ctrl) {
+        ctrl.appendChild(bbContainer);
+        bbMounted = true;
+      }
+    }
+    if (!bbMounted) {
+      bbContainer.style.cssText = "position:fixed;bottom:80px;right:16px;z-index:9999";
+      document.body.appendChild(bbContainer);
+    }
+    ReactDOM.render(h6(BottomBarWidget), bbContainer);
+  }
+  function registerContextMenu() {
+    try {
+      const CtxMenu = Spicetify.ContextMenu;
+      if (!CtxMenu) {
+        console.log("[MyWave] ContextMenu API not available");
+        return;
+      }
+      const menuItem = new CtxMenu.Item(
+        "Start Mix from this",
+        (uris) => {
+          const uri = uris[0];
+          if (uri?.includes("playlist")) {
+            engine5.startFromPlaylist(uri);
+          }
+        },
+        (uris) => {
+          return uris.length === 1 && uris[0]?.includes("playlist");
+        }
+      );
+      menuItem.register();
+      window.__mywaveCtxMenu = menuItem;
+      console.log("[MyWave] Context menu registered");
+    } catch (e) {
+      console.log("[MyWave] Failed to register context menu:", e);
+    }
+  }
+  function injectHomeBanner() {
+    let mounted = false;
+    function tryInject() {
+      if (mounted && document.getElementById("mywave-home")) return;
+      const old = document.getElementById("mywave-home");
+      if (old) {
+        old.remove();
+        mounted = false;
+      }
+      const homeContent = document.querySelector('[data-testid="home-page"]') || document.querySelector(".main-home-content");
+      if (!homeContent) return;
+      const container = document.createElement("div");
+      container.id = "mywave-home";
+      const children = homeContent.children;
+      if (children.length > 0) {
+        try {
+          homeContent.insertBefore(container, children[0]);
+        } catch {
+          try {
+            homeContent.prepend(container);
+          } catch {
+            homeContent.appendChild(container);
+          }
+        }
+      } else {
+        homeContent.appendChild(container);
+      }
+      ReactDOM.render(h6(HomeBanner), container);
+      mounted = true;
+      console.log("[MyWave] Home banner injected");
+    }
+    setTimeout(tryInject, 2e3);
+    setTimeout(tryInject, 5e3);
+    let debounceTimer = null;
+    const obs = new MutationObserver(() => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(tryInject, 300);
+    });
+    const mainView = document.querySelector(".Root__main-view") || document.body;
+    obs.observe(mainView, { childList: true, subtree: true });
+    window.__mywaveObserver = obs;
+  }
+  (async () => {
+    await main();
+  })();
+})();

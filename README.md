@@ -11,6 +11,10 @@
   <a href="#-по-русски">Русский</a>
 </p>
 
+<p align="center">
+  <img src="12.gif" alt="MIX LINE Demo" width="700" />
+</p>
+
 ---
 
 ## What is MIX LINE?
@@ -23,10 +27,18 @@ No playlists to manage, no manual skipping through Discover Weekly. Just music t
 
 ## Installation
 
+### One-Line Install (PowerShell)
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/l1kad/MIX-LINE---spotify-/main/install.ps1 | iex
+```
+
+This downloads MIX LINE, installs Spicetify if needed, and applies everything automatically.
+
 ### Quick Install (Windows)
 
-1. Download the [latest release](https://github.com/l1kad/MIX-LINE---spotify-/releases/latest) (`MixLine-Setup.exe` or `install.bat` + `mywave.js`)
-2. Run `install.bat` — it installs Spicetify (if needed) and the extension automatically
+1. Download the [latest release](https://github.com/l1kad/MIX-LINE---spotify-/releases/latest) — `MIX-LINE-v1.0.0.zip`
+2. Extract and run `install.bat`
 3. Spotify restarts → look for the **MIX LINE** button in the bottom bar
 
 ### Manual Install
@@ -41,7 +53,11 @@ spicetify apply
 
 ### Uninstall
 
-Run `uninstall.bat` or manually:
+```powershell
+iwr -useb https://raw.githubusercontent.com/l1kad/MIX-LINE---spotify-/main/uninstall.ps1 | iex
+```
+
+Or manually:
 ```powershell
 spicetify config extensions mywave.js-
 spicetify apply
@@ -178,10 +194,18 @@ MIX LINE превращает Spotify в бесконечное радио, ко
 
 ## Установка
 
+### Установка одной командой (PowerShell)
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/l1kad/MIX-LINE---spotify-/main/install.ps1 | iex
+```
+
+Скачает MIX LINE, установит Spicetify (если нужно) и применит всё автоматически.
+
 ### Быстрая установка (Windows)
 
-1. Скачайте [последний релиз](https://github.com/l1kad/MIX-LINE---spotify-/releases/latest) (`MixLine-Setup.exe` или `install.bat` + `mywave.js`)
-2. Запустите `install.bat` — он установит Spicetify (если нужно) и расширение автоматически
+1. Скачайте [последний релиз](https://github.com/l1kad/MIX-LINE---spotify-/releases/latest) — `MIX-LINE-v1.0.0.zip`
+2. Распакуйте и запустите `install.bat`
 3. Spotify перезапустится → ищите кнопку **MIX LINE** в нижней панели
 
 ### Ручная установка
@@ -196,7 +220,11 @@ spicetify apply
 
 ### Удаление
 
-Запустите `uninstall.bat` или вручную:
+```powershell
+iwr -useb https://raw.githubusercontent.com/l1kad/MIX-LINE---spotify-/main/uninstall.ps1 | iex
+```
+
+Или вручную:
 ```powershell
 spicetify config extensions mywave.js-
 spicetify apply

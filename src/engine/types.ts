@@ -23,5 +23,8 @@ export interface WaveState {
   uniqueArtistsCount: number;
   topArtists: { name: string; count: number }[];
   topLikedArtist: string | null;
-  pinnedMood: string | null;
+  pinnedMoods: string[];
+  pinnedArtists: string[];
+  pinnedPlaylists: { name: string; uri: string }[];
+  discoveryOnly: boolean;
 }

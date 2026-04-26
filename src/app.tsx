@@ -5,7 +5,10 @@ import { setHooksEngine } from "./ui/hooks";
 import { setEngine as setPanelEngine } from "./ui/panel";
 import { setHomeBannerEngine, HomeBanner } from "./ui/HomeBanner";
 import { setBottomBarEngine, BottomBarWidget } from "./ui/BottomBarWidget";
-import { injectStyles } from "./styles";
+import { DebugOverlay, setDebugEngine, isDebugEnabled } from "./ui/DebugOverlay";
+import { maybeShowWeeklyReport } from "./ui/WeeklyReport";
+import { parseShareFromLocation, clearShareFromLocation, applyShare } from "./engine/share";
+import { injectStyles } from "./styles/index";
 
 // ============================================================
 // Entry Point
@@ -36,6 +39,10 @@ function cleanupPreviousInstance() {
   }
   const oldStyles = document.getElementById("mywave-styles");
   if (oldStyles) oldStyles.remove();
+  const oldDbg = document.getElementById("mywave-debug");
+  if (oldDbg) { ReactDOM.unmountComponentAtNode(oldDbg); oldDbg.remove(); }
+  const oldWk = document.getElementById("mywave-weekly");
+  if (oldWk) { ReactDOM.unmountComponentAtNode(oldWk); oldWk.remove(); }
 
   // Disconnect previous observer
   if ((window as any).__mywaveObserver) {
@@ -66,12 +73,14 @@ async function main() {
   setPanelEngine(engine);
   setHomeBannerEngine(engine);
   setBottomBarEngine(engine);
+  setDebugEngine(engine);
 
   cleanupPreviousInstance();
   injectStyles();
   registerContextMenu();
   engine.loadTopLikedArtist();
   injectHomeBanner();
+  mountDebugOverlay();
 
   const bbContainer = document.createElement("div");
   bbContainer.id = "mywave-bb";
@@ -97,6 +106,34 @@ async function main() {
     document.body.appendChild(bbContainer);
   }
   ReactDOM.render(h(BottomBarWidget), bbContainer);
+
+  // --- Phase 2 wiring -------------------------------------------------
+  // 1) If the URL carries a share token, apply it and clean up the hash.
+  const sharePayload = parseShareFromLocation();
+  if (sharePayload) {
+    clearShareFromLocation();
+    // Small delay so Spicetify.Platform is fully ready before PlayerAPI.play
+    setTimeout(() => {
+      applyShare(engine, sharePayload).then((ok) => {
+        if (ok) Spicetify.showNotification("Applied shared mix");
+      });
+    }, 1500);
+  }
+
+  // 2) Weekly Wrapped-style digest (shows once per 7d if enough events).
+  maybeShowWeeklyReport(ReactDOM);
+}
+
+// --- Debug Overlay ---
+// Only mounts when `?mywave-debug` is in the URL or localStorage flag is set.
+// Adds zero DOM to normal users.
+function mountDebugOverlay() {
+  if (!isDebugEnabled()) return;
+  const container = document.createElement("div");
+  container.id = "mywave-debug";
+  document.body.appendChild(container);
+  ReactDOM.render(h(DebugOverlay), container);
+  console.log("[MyWave] Debug overlay mounted");
 }
 
 // --- Context Menu ---
@@ -165,8 +202,9 @@ function injectHomeBanner() {
 
   let debounceTimer: any = null;
   const obs = new MutationObserver(() => {
+    if (document.hidden) return; // skip when hidden
     if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(tryInject, 300);
+    debounceTimer = setTimeout(tryInject, 500);
   });
   const mainView = document.querySelector('.Root__main-view') || document.body;
   obs.observe(mainView, { childList: true, subtree: true });

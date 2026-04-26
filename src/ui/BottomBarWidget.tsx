@@ -1,8 +1,10 @@
 import { WaveEngine } from "../engine/WaveEngine";
 import { WaveIcon, StopIcon, MoodIcon, HistoryIcon, StatsIcon, MixIcon } from "./icons";
 import { AsciiWave, PanelMixLabel, triggerNewMix } from "./visualizers";
-import { NowPlayingCard, MainTab, HistoryTab, StatsTab } from "./panel";
+import { NowPlayingCard, MainTab, MoodTab, HistoryTab, StatsTab } from "./panel";
 import { useEngineState } from "./hooks";
+import { OnboardingModal, hasSeenOnboarding } from "./Onboarding";
+import { subscribeToast, Toast } from "../engine/toast";
 
 const h = (...args: any[]) => Spicetify.React.createElement(...(args as [any, any, ...any[]]));
 
@@ -13,7 +15,9 @@ export function setBottomBarEngine(e: WaveEngine) { engine = e; }
 export function BottomBarWidget() {
   const state = useEngineState();
   const [panelOpen, setPanelOpen] = Spicetify.React.useState(false);
-  const [tab, setTab] = Spicetify.React.useState("main" as "main" | "history" | "stats");
+  const [tab, setTab] = Spicetify.React.useState("main" as "main" | "moods" | "history" | "stats");
+  const [showGuide, setShowGuide] = Spicetify.React.useState(!hasSeenOnboarding());
+  const [toast, setToast] = Spicetify.React.useState(null as Toast | null);
   const panelRef = Spicetify.React.useRef(null as HTMLDivElement | null);
 
   Spicetify.React.useEffect(() => {
@@ -26,56 +30,74 @@ export function BottomBarWidget() {
     return () => document.removeEventListener("mousedown", handler);
   }, [panelOpen]);
 
+  Spicetify.React.useEffect(() => subscribeToast(setToast), []);
+
   Spicetify.React.useEffect(() => {
     if (panelOpen) setTab("main");
   }, [panelOpen]);
 
-  return h("div", { className: "mw-bottombar", ref: panelRef },
-    panelOpen && h("div", { className: "mw-panel" },
-      h("div", { className: "mw-panel-inner" },
-        // Header with ASCII glow
-        h("div", { className: "mw-header" },
-          h("div", { className: "mw-header-left" },
-            h("div", { className: "mw-logo" }, h(WaveIcon, { size: 14 })),
-            h("span", { className: "mw-header-title" }, "MIX LINE")),
-          h("div", { className: "mw-header-tabs" },
-            h("button", {
-              className: `mw-htab${tab === "main" ? " mw-htab-on" : ""}`,
-              onClick: () => setTab("main"),
-            }, h(MoodIcon, { size: 15 })),
-            h("button", {
-              className: `mw-htab${tab === "history" ? " mw-htab-on" : ""}`,
-              onClick: () => setTab("history"),
-            }, h(HistoryIcon, { size: 15 })),
-            h("button", {
-              className: `mw-htab${tab === "stats" ? " mw-htab-on" : ""}`,
-              onClick: () => setTab("stats"),
-            }, h(StatsIcon, { size: 15 })))),
+  return h(Spicetify.React.Fragment, null,
+    showGuide && h(OnboardingModal, { onClose: () => setShowGuide(false) }),
+    h("div", { className: "mw-bottombar", ref: panelRef },
+      panelOpen && h("div", { className: "mw-panel" },
+        h("div", { className: "mw-panel-inner" },
+          // Header
+          h("div", { className: "mw-header" },
+            h("div", { className: "mw-header-left" },
+              h("div", { className: "mw-logo" }, h(WaveIcon, { size: 14 })),
+              h("span", { className: "mw-header-title" }, "MIX LINE"),
+              h("button", {
+                className: "mw-guide-btn",
+                onClick: () => setShowGuide(true),
+                title: "Guide",
+              }, "?")),
+            h("div", { className: "mw-header-tabs" },
+              h("button", {
+                className: `mw-htab${tab === "main" ? " mw-htab-on" : ""}`,
+                onClick: () => setTab("main"),
+              }, h(WaveIcon, { size: 15 })),
+              h("button", {
+                className: `mw-htab${tab === "moods" ? " mw-htab-on" : ""}`,
+                onClick: () => setTab("moods"),
+              }, h(MoodIcon, { size: 15 })),
+              h("button", {
+                className: `mw-htab${tab === "history" ? " mw-htab-on" : ""}`,
+                onClick: () => setTab("history"),
+              }, h(HistoryIcon, { size: 15 })),
+              h("button", {
+                className: `mw-htab${tab === "stats" ? " mw-htab-on" : ""}`,
+                onClick: () => setTab("stats"),
+              }, h(StatsIcon, { size: 15 })))),
 
-        // ASCII Equalizer Banner + Now Playing (main tab only when active)
-        tab === "main" && state.isActive && h("div", { className: "mw-ascii-banner" },
-          h(AsciiWave, { active: true }),
-          h("div", { className: "mw-ascii-overlay" },
-            h(PanelMixLabel))),
+          // Transient status line — CLI-style "/link copied", etc.
+          toast && h("div", {
+            key: toast.id,
+            className: `mw-toast${toast.kind === "error" ? " mw-toast-err" : ""}`,
+          }, toast.msg),
 
-        tab === "main" && state.isActive && h(NowPlayingCard, { state }),
+          // Tab content with fade transition
+          h("div", { key: tab, className: "mw-tab-body" },
+            tab === "main" && state.isActive && h("div", { className: "mw-ascii-banner" },
+              h(AsciiWave, { active: true }),
+              h("div", { className: "mw-ascii-overlay" },
+                h(PanelMixLabel))),
+            tab === "main" && state.isActive && h(NowPlayingCard, { state }),
+            tab === "main" && h(MainTab, { state }),
+            tab === "moods" && h(MoodTab, { state }),
+            tab === "history" && h(HistoryTab, { history: state.history }),
+            tab === "stats" && h(StatsTab, { state })),
 
-        // Tab content
-        tab === "main" && h(MainTab, { state }),
-        tab === "history" && h(HistoryTab, { history: state.history }),
-        tab === "stats" && h(StatsTab, { state }),
+          // Bottom actions (main tab only)
+          tab === "main" && state.isActive && h("div", { className: "mw-actions" },
+            h("button", { className: "mw-act mw-act-stop", onClick: () => engine.stop() },
+              h(StopIcon, { size: 14 }), "Stop"),
+            h("button", { className: "mw-act mw-act-reseed", onClick: () => { triggerNewMix(); engine.reseed(); } },
+              h(MixIcon, { size: 14 }), "New mix")))),
 
-        // Bottom actions
-        state.isActive && h("div", { className: "mw-actions" },
-          h("button", { className: "mw-act mw-act-stop", onClick: () => engine.stop() },
-            h(StopIcon, { size: 14 }), "Stop"),
-          h("button", { className: "mw-act mw-act-reseed", onClick: () => { triggerNewMix(); engine.reseed(); } },
-            h(MixIcon, { size: 14 }), "New mix")))),
-
-    // Trigger button
-    h("button", {
-      className: `mw-trigger${state.isActive ? " mw-trigger-on" : ""}`,
-      onClick: () => setPanelOpen(!panelOpen),
-    },
-      h("div", { className: "mw-trigger-icon" }, h(WaveIcon, { size: 14 }))));
+      // Trigger button
+      h("button", {
+        className: `mw-trigger${state.isActive ? " mw-trigger-on" : ""}`,
+        onClick: () => setPanelOpen(!panelOpen),
+      },
+        h("div", { className: "mw-trigger-icon" }, h(WaveIcon, { size: 14 })))));
 }

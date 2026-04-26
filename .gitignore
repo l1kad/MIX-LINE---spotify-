@@ -1,3 +1,29 @@
 node_modules/
 dist/
 *.zip
+
+# IDE / tools
+.agents/
+.claude/
+.kiro/
+.windsurf/
+.vscode/
+.idea/
+
+# Build artifacts
+*.exe
+MixLine-Setup.exe
+spicetify-*.zip
+
+# Dev files
+prompt.md
+skills-lock.json
+build-installer.ps1
+
+# Temp HTML previews
+wave.html
+waves.html
+weekly-preview.html
+
+# Dev docs
+docs/superpowers/

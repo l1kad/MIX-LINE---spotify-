@@ -1,4 +1,5 @@
 import { EQ_COLS, EQ_ROWS, EQ_COLS_MINI, EQ_ROWS_MINI } from "../engine/constants";
+import { useAppVisible, isAppVisible } from "./hooks";
 
 const h = (...args: any[]) => Spicetify.React.createElement(...(args as [any, any, ...any[]]));
 
@@ -19,6 +20,7 @@ export function useNewMixSignal() {
 export function AsciiWave({ active, mini }: { active: boolean; mini?: boolean }) {
   const cols = mini ? EQ_COLS_MINI : EQ_COLS;
   const rows = mini ? EQ_ROWS_MINI : EQ_ROWS;
+  const visible = useAppVisible();
 
   // Idle bar heights (bell curve — center taller)
   const idle = Spicetify.React.useMemo(() =>
@@ -30,7 +32,7 @@ export function AsciiWave({ active, mini }: { active: boolean; mini?: boolean })
   const [bars, setBars] = Spicetify.React.useState<number[]>(idle);
 
   Spicetify.React.useEffect(() => {
-    if (!active) { setBars(idle); return; }
+    if (!active || !visible) { if (!active) setBars(idle); return; }
     const cur = idle.map(v => v);
     const tgt = cur.map(() => Math.random() * rows);
     let timer: any;
@@ -47,78 +49,157 @@ export function AsciiWave({ active, mini }: { active: boolean; mini?: boolean })
     };
     tick();
     return () => clearTimeout(timer);
-  }, [active, idle, cols, rows]);
+  }, [active, visible, idle, cols, rows]);
 
-  return h("div", { className: `mw-eq${active ? " mw-eq-on" : ""}${mini ? " mw-eq-mini" : ""}` },
-    Array.from({ length: rows }, (_, r) => {
-      const rowBot = rows - 1 - r;
-      return h("div", { key: r, className: "mw-eq-row" },
-        Array.from({ length: cols }, (_, c) => {
-          const bh = bars[c];
-          let ch: string;
-          if (bh > rowBot + 0.75) ch = "\u2588";
-          else if (bh > rowBot + 0.5) ch = "\u2593";
-          else if (bh > rowBot + 0.25) ch = "\u2592";
-          else if (bh > rowBot) ch = "\u2591";
-          else ch = " ";
-          return h("span", { key: c, className: ch !== " " ? "mw-eq-ch" : "mw-eq-sp" }, ch);
-        }));
-    }));
+  // Build a single string — avoids 91+ span elements per frame
+  const lines: string[] = [];
+  for (let r = 0; r < rows; r++) {
+    const rowBot = rows - 1 - r;
+    let line = "";
+    for (let c = 0; c < cols; c++) {
+      const bh = bars[c];
+      if (bh > rowBot + 0.75) line += "\u2588";
+      else if (bh > rowBot + 0.5) line += "\u2593";
+      else if (bh > rowBot + 0.25) line += "\u2592";
+      else if (bh > rowBot) line += "\u2591";
+      else line += " ";
+    }
+    lines.push(line);
+  }
+  return h("pre", { className: `mw-eq${active ? " mw-eq-on" : ""}${mini ? " mw-eq-mini" : ""}` }, lines.join("\n"));
 }
 
-// ========== CONSOLE TYPING LABEL ==========
-export function MixLabel({ isNewMix }: { isNewMix?: boolean }) {
-  const [text, setText] = Spicetify.React.useState("");
-  const [phase, setPhase] = Spicetify.React.useState("typing" as "typing" | "hold" | "erasing");
-  const targetRef = Spicetify.React.useRef("/MIX...");
-  const triggerRef = Spicetify.React.useRef(0);
+// ========== CONSOLE TYPING LABEL (global sync) ==========
+const MIX_EXTRAS = [
+  "/MIXING...",
+  "/SOUNDS GOOD.",
+  "/I LIKE THIS MIX.",
+  "/FOUND NEW MIX.",
+  "/MIX!!!",
+  "/NOT BAD.",
+  "/VIBES.",
+  "/NICE ONE.",
+  "/KEEP GOING...",
+  "/GOOD STUFF.",
+  "/OH THIS IS NICE.",
+  "/WAIT THIS SLAPS.",
+];
+const MIX_RARE = "/MIIIIIIIX 0_0";
+let mixCycleCount = 0;
+let extraQueue: string[] = [];
+
+function shuffleExtras() {
+  extraQueue = [...MIX_EXTRAS];
+  for (let i = extraQueue.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [extraQueue[i], extraQueue[j]] = [extraQueue[j], extraQueue[i]];
+  }
+}
+
+function pickPhrase(): string {
+  mixCycleCount++;
+  if (Math.random() < 0.01) return MIX_RARE;
+  if (mixCycleCount % 6 === 0) {
+    if (extraQueue.length === 0) shuffleExtras();
+    return extraQueue.pop()!;
+  }
+  return "/MIX...";
+}
+
+// Single global animation state — all MixLabel instances subscribe
+const mixLabelState = {
+  text: "",
+  listeners: new Set<() => void>(),
+  phase: "typing" as "typing" | "hold" | "erasing",
+  target: "/MIX...",
+  timer: null as any,
+  running: false,
+
+  notify() { this.listeners.forEach(cb => cb()); },
+
+  start() {
+    if (this.running) return;
+    this.running = true;
+    this.tick();
+  },
+
+  stop() {
+    this.running = false;
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+  },
+
+  pause() {
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+  },
+
+  resume() {
+    if (this.running && !this.timer) this.tick();
+  },
+
+  forceNewMix() {
+    if (this.timer) clearTimeout(this.timer);
+    this.target = "/NEW MIX...";
+    this.text = "";
+    this.phase = "typing";
+    this.notify();
+    this.tick();
+  },
+
+  tick() {
+    if (!this.running) return;
+    if (this.phase === "typing") {
+      if (this.text.length < this.target.length) {
+        this.text = this.target.slice(0, this.text.length + 1);
+        this.notify();
+        this.timer = setTimeout(() => this.tick(), 60 + Math.random() * 40);
+      } else {
+        this.notify();
+        this.timer = setTimeout(() => { this.phase = "hold"; this.tick(); }, 2200);
+      }
+    } else if (this.phase === "hold") {
+      this.phase = "erasing";
+      this.timer = setTimeout(() => this.tick(), 200);
+    } else if (this.phase === "erasing") {
+      if (this.text.length > 0) {
+        this.text = this.text.slice(0, -1);
+        this.notify();
+        this.timer = setTimeout(() => this.tick(), 30);
+      } else {
+        this.target = pickPhrase();
+        this.phase = "typing";
+        this.notify();
+        this.timer = setTimeout(() => this.tick(), 400);
+      }
+    }
+  },
+};
+
+export function PanelMixLabel() {
+  const [text, setText] = Spicetify.React.useState(mixLabelState.text);
+  const sig = useNewMixSignal();
+  const prevRef = Spicetify.React.useRef(sig);
+
+  const visible = useAppVisible();
 
   Spicetify.React.useEffect(() => {
-    if (isNewMix) {
-      targetRef.current = "/NEW MIX...";
-      setText("");
-      setPhase("typing");
-      triggerRef.current++;
-    }
-  }, [isNewMix]);
+    const cb = () => setText(mixLabelState.text);
+    mixLabelState.listeners.add(cb);
+    mixLabelState.start();
+    return () => { mixLabelState.listeners.delete(cb); if (mixLabelState.listeners.size === 0) mixLabelState.stop(); };
+  }, []);
 
   Spicetify.React.useEffect(() => {
-    let timer: any;
-    const target = targetRef.current;
+    if (visible) mixLabelState.resume();
+    else mixLabelState.pause();
+  }, [visible]);
 
-    if (phase === "typing") {
-      if (text.length < target.length) {
-        timer = setTimeout(() => setText(target.slice(0, text.length + 1)), 60 + Math.random() * 40);
-      } else {
-        timer = setTimeout(() => setPhase("hold"), 1800);
-      }
-    } else if (phase === "hold") {
-      timer = setTimeout(() => setPhase("erasing"), 200);
-    } else if (phase === "erasing") {
-      if (text.length > 0) {
-        timer = setTimeout(() => setText(text.slice(0, -1)), 30);
-      } else {
-        targetRef.current = "/MIX...";
-        timer = setTimeout(() => setPhase("typing"), 400);
-      }
-    }
-    return () => clearTimeout(timer);
-  }, [text, phase]);
+  Spicetify.React.useEffect(() => {
+    if (sig !== prevRef.current) { mixLabelState.forceNewMix(); prevRef.current = sig; }
+  }, [sig]);
 
   return h("span", { className: "mw-ascii-label" },
     h("span", null, text),
     h("span", { className: "mw-cursor" }, "\u2588"));
-}
-
-export function PanelMixLabel() {
-  const sig = useNewMixSignal();
-  const [isNew, setIsNew] = Spicetify.React.useState(false);
-  const prevRef = Spicetify.React.useRef(sig);
-  Spicetify.React.useEffect(() => {
-    if (sig !== prevRef.current) { setIsNew(true); prevRef.current = sig; }
-    else { setIsNew(false); }
-  }, [sig]);
-  return h(MixLabel, { isNewMix: isNew });
 }
 
 // ========== SEA WAVES BACKGROUND ==========
@@ -132,10 +213,13 @@ export const SEA_ROWS = [
 
 export function SeaWaves() {
   return h("div", { className: "mw-sea" },
-    SEA_ROWS.map((row, i) =>
-      h("div", {
+    SEA_ROWS.map((row, i) => {
+      // Double the content: first half scrolls out, second half is identical = seamless
+      const tile = row.chars.repeat(4);
+      return h("div", {
         key: i,
         className: "mw-sea-row",
-        style: { opacity: row.op, animationDuration: `${row.speed}s` } as any,
-      }, row.chars.repeat(6))));
+        style: { opacity: row.op, animationDuration: `${row.speed}s`, contain: "layout paint" } as any,
+      }, tile + tile);
+    }));
 }

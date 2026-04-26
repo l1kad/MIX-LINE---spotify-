@@ -1,15 +1,14 @@
 {
-  "name": "MyWave",
-  "description": "Infinite music stream for Spotify, inspired by Yandex.Music My Wave",
-  "preview": "preview.png",
+  "name": "MIX LINE",
+  "description": "Infinite music stream for Spotify Desktop",
+  "preview": "docs/banner.png",
   "main": "dist/app.js",
-  "readme": "",
+  "readme": "README.md",
   "tags": ["extension"],
   "authors": ["l1kad"],
   "entries": [
     {
-      "js": "dist/app.js",
-      "css": "dist/styles.css"
+      "js": "dist/app.js"
     }
   ]
 }

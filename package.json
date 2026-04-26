@@ -1,7 +1,22 @@
 {
-  "name": "mywave-spicetify",
+  "name": "mixline-spicetify",
   "version": "1.0.0",
-  "description": "Yandex-style infinite music stream for Spotify Desktop",
+  "description": "MIX LINE — Infinite music stream for Spotify Desktop",
+  "author": "l1kad",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/l1kad/MIX-LINE---spotify-"
+  },
+  "keywords": [
+    "spicetify",
+    "spotify",
+    "extension",
+    "infinite-radio",
+    "music",
+    "mix",
+    "recommendations"
+  ],
   "scripts": {
     "build": "esbuild src/app.tsx --bundle --outfile=dist/app.js --format=iife --target=es2020 --jsx=transform --jsx-factory=Spicetify.React.createElement --jsx-fragment=Spicetify.React.Fragment",
     "watch": "esbuild src/app.tsx --bundle --outfile=dist/app.js --format=iife --target=es2020 --jsx=transform --jsx-factory=Spicetify.React.createElement --jsx-fragment=Spicetify.React.Fragment --watch"

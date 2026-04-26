@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="12.gif" alt="MIX LINE Demo" width="700" />
+  <img src="https://github.com/l1kad/MIX-LINE---spotify-/releases/download/v1.0.0/12.gif" alt="MIX LINE Demo" width="700" />
 </p>
 
 ---

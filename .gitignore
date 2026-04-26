@@ -19,6 +19,9 @@ spicetify-*.zip
 prompt.md
 skills-lock.json
 
+# GIF / media
+*.gif
+
 # Temp HTML previews
 wave.html
 waves.html
